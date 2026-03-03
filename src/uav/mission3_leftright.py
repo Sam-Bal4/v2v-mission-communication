@@ -68,8 +68,8 @@ def main():
             print(f"\n[Mission 3] Task {i+1}/5: {desc}")
             bridge.send_command(cmdSeq=300+i, cmd=cmd, estop=0)
             
-            # Simple duration-based wait for this test
-            wait_time = 2.5 if "DRIVE" in desc else 4.0
+            # Tracking duration (Extended for reliable completion)
+            wait_time = 4.0 if "DRIVE" in desc else 6.0
             start_segment = time.time()
             while (time.time() - start_segment) < wait_time:
                 data = bridge.get_telemetry()
