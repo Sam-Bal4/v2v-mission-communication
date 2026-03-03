@@ -3,18 +3,21 @@ import time
 import v2v_bridge
 
 # ------------------- SET THESE PORTS -------------------
-# Restore to TTY for Jetson/Linux
 CONNECTION_STRING = "/dev/ttyACM0" 
 BAUD_RATE = 115200
 ESP32_PORT = "/dev/ttyACM1"
 
 # ------------------- Connect -------------------
 def main():
+    print("==========================================")
+    print("   UAV MISSION 1 - GROUND COORDINATION")
+    print("==========================================")
+    
     print(f"[Mission 1] Connecting to UAV Controller at {CONNECTION_STRING}...")
     try:
         master = mavutil.mavlink_connection(CONNECTION_STRING, baud=BAUD_RATE)
         master.wait_heartbeat()
-        print("[Mission 1] Drone Heartbeat found.")
+        print("[Mission 1] Drone Heartbeat found. Sensors Check: OK")
     except Exception as e:
         print(f"!!! Error connecting to Drone: {e} !!!")
         print("Continuing with Bridge only...")
@@ -35,38 +38,70 @@ def main():
             master.mav.command_long_send(master.target_system, master.target_component,
                                          mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM, 0, 1, 
                                          0, 0, 0, 0, 0, 0)
-            print("[Mission 1] Arming props (GROUND ONLY)...")
+            print("[Mission 1] Drone Motors Engaged (Ground Only).")
 
     def disarm_drone():
         if master:
             master.mav.command_long_send(master.target_system, master.target_component,
                                          mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM, 0, 0, 
                                          0, 0, 0, 0, 0, 0)
-            print("[Mission 1] Disarming.")
+            print("[Mission 1] Drone Disarmed.")
 
-    # ------------------- EXECUTION 0-------------------
+    # ------------------- EXECUTION -------------------
     try:
         # 1. Arm Drone on Ground
         arm_drone()
         time.sleep(2)
         
-        # 2. COORDINATED ACTION: Tell UGV to move!
-        print("[Mission 1] Commanding UGV to MOVE 10ft...")
-        bridge.send_command(cmdSeq=1, cmd=v2v_bridge.CMD_MOVE_FORWARD, estop=0) 
-
-        # 3. Simulation of "Moving" time (staying armed for 5 seconds)
-        print("[Mission 1] Drone is staying armed while UGV moves...")
-        for i in range(50): # 5 seconds
+        # 2. WAIT FOR UGV SYNC:
+        print("[Mission 1] Waiting for UGV Status Sync via Radio...")
+        ugv_ready = False
+        timeout_start = time.time()
+        
+        while not ugv_ready:
+            # Check for Telemetry FROM the UGV
+            data = bridge.get_telemetry()
+            if data:
+                seq, t_ms, vx, vy, armed, mode = data
+                status_str = "ARMED" if armed == 1 else "DISARMED"
+                mode_str = "GUIDED" if mode == v2v_bridge.MODE_GUIDED else "INITIAL"
+                print(f"    [RADIO] UGV STATUS: {status_str} | MODE: {mode_str}")
+                
+                # If we see UGV is armed, we can proceed
+                if armed == 1:
+                    print("\n!!! [SYNC] UGV CONFIRMS ARMED AND READY !!!")
+                    ugv_ready = True
+            
+            # Send our own telemetry so UGV knows we are alive
             t_ms = int(time.time() * 1000) & 0xFFFFFFFF
-            bridge.send_telemetry(i, t_ms, 0.0, 0.0, 0, 0)
-            time.sleep(0.1)
+            bridge.send_telemetry(0, t_ms, 0.0, 0.0, 1, v2v_bridge.MODE_INITIAL)
+            
+            time.sleep(1.0)
+            if time.time() - timeout_start > 30: # 30s timeout
+                print("!!! [TIMEOUT] UGV did not arm. Aborting mission sequence.")
+                break
 
-        # 4. Clean up
-        print("[Mission 1] Test Complete.")
+        if ugv_ready:
+            # 3. COORDINATED ACTION: Tell UGV to move!
+            print("[Mission 1] >>> COMMANDING UGV TO MOVE 10ft FRONT")
+            bridge.send_command(cmdSeq=1, cmd=v2v_bridge.CMD_MOVE_FORWARD, estop=0) 
+
+            # 4. Simulation of "Moving" time
+            print("[Mission 1] Tracking UGV progress...")
+            for i in range(10):
+                # Print real-time speed from UGV if available
+                telem = bridge.get_telemetry()
+                if telem:
+                    v_mps = telem[2]
+                    print(f"  Driving... Speed: {v_mps:.1f} m/s")
+                time.sleep(1.0)
+
+        # 5. Clean up
+        print("[Mission 1] Test Sequence Complete.")
         disarm_drone()
 
     except KeyboardInterrupt:
-        print("Stopping Mission 1...")
+        print("[Mission 1] User Interrupted. Safety Disarming...")
         disarm_drone()
     finally:
         bridge.stop()

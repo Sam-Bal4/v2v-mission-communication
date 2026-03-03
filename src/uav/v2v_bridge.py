@@ -15,6 +15,14 @@ CMD_TAKEOFF      = 3
 CMD_LAND         = 4
 CMD_MOVE_FORWARD = 5
 
+# -------------------- VEHICLE MODES (for Status) --------------------
+# used in 'estop' field of telemetry to represent current mode
+MODE_INITIAL  = 0
+MODE_GUIDED   = 1
+MODE_AUTO     = 2
+MODE_LAND     = 3
+MODE_DISARMED = 4 # Special case status
+
 TELEM_FMT = "<IIffBB"  # 18 bytes
 CMD_FMT   = "<IBB"     # 6 bytes
 
