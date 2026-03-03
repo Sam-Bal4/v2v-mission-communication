@@ -50,6 +50,23 @@ def main():
                                          0, 0, 0, 0, 0, 0)
             print("[Mission 1] Drone Disarmed.")
 
+    def broadcast_uav_status(seq):
+        """Fetches drone status via MAVLink and sends it over radio."""
+        armed_val = 0
+        mode_val = v2v_bridge.MODE_INITIAL
+        
+        if master:
+            # Request small status update
+            # We look for HEARTBEAT to get mode and armed state
+            msg = master.recv_match(type='HEARTBEAT', blocking=False)
+            if msg:
+                armed_val = 1 if (msg.base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED) else 0
+                # Mode extraction varies by flight stack, but simple INITIAL is fine for ground test
+                # If we wanted specific modes, we'd map msg.custom_mode
+        
+        t_ms = int(time.time() * 1000) & 0xFFFFFFFF
+        bridge.send_telemetry(seq, t_ms, 0.0, 0.0, armed_val, mode_val)
+
     # ------------------- EXECUTION -------------------
     try:
         # 1. Arm Drone on Ground
@@ -65,19 +82,18 @@ def main():
             # Check for Telemetry FROM the UGV
             data = bridge.get_telemetry()
             if data:
-                seq, t_ms, vx, vy, armed, mode = data
-                status_str = "ARMED" if armed == 1 else "DISARMED"
-                mode_str = "GUIDED" if mode == v2v_bridge.MODE_GUIDED else "INITIAL"
+                seq_u, t_ms_u, vx_u, vy_u, armed_u, mode_u = data
+                status_str = "ARMED" if armed_u == 1 else "DISARMED"
+                mode_str = "GUIDED" if mode_u == v2v_bridge.MODE_GUIDED else "INITIAL"
                 print(f"    [RADIO] UGV STATUS: {status_str} | MODE: {mode_str}")
                 
                 # If we see UGV is armed, we can proceed
-                if armed == 1:
+                if armed_u == 1:
                     print("\n!!! [SYNC] UGV CONFIRMS ARMED AND READY !!!")
                     ugv_ready = True
             
             # Send our own telemetry so UGV knows we are alive
-            t_ms = int(time.time() * 1000) & 0xFFFFFFFF
-            bridge.send_telemetry(0, t_ms, 0.0, 0.0, 1, v2v_bridge.MODE_INITIAL)
+            broadcast_uav_status(0)
             
             time.sleep(1.0)
             if time.time() - timeout_start > 30: # 30s timeout

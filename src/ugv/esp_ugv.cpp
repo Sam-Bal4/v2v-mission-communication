@@ -44,6 +44,7 @@ typedef struct __attribute__((packed)) {
 static QueueHandle_t qTelemToSerial = nullptr; // Radio -> forward to Pi (USB)
 static QueueHandle_t qCmdToSerial   = nullptr; // Radio (from Air) -> forward to Pi
 static QueueHandle_t qMsgToSerial   = nullptr; // Radio (from Air) -> forward to Pi
+static QueueHandle_t qTelemToNow    = nullptr; // Pi (USB) -> send out over Radio (to UAV)
 static QueueHandle_t qCmdToNow      = nullptr; // Pi (USB) -> send to Radio
 
 // -------------------- MUTEX (Safety Lock) --------------------
@@ -217,13 +218,33 @@ void serialRxTask(void* pv) {
           // drop command in radio mailbox
           if (qCmdToNow) xQueueSend(qCmdToNow, &c, 0);
         }
+        else if (type == TYPE_TELEM && len == sizeof(TelemetryPayload)) {
+          TelemetryPayload t;
+          memcpy(&t, payload, sizeof(t));
+          if (qTelemToNow) xQueueSend(qTelemToNow, &t, 0);
+        }
       }
     }
     vTaskDelay(pdMS_TO_TICKS(5)); // rest a bit to be nice to CPU
   }
 }
 
-// Worker 4: Takes commands from mailbox and sends to Radio
+// Worker 5: Takes telemetry from mailbox and sends to UAV Radio
+void radioTxTelemTask(void* pv) {
+  (void)pv;
+  TelemetryPayload t;
+  uint8_t pkt[1 + sizeof(TelemetryPayload)];
+  pkt[0] = TYPE_TELEM;
+
+  for (;;) {
+    if (xQueueReceive(qTelemToNow, &t, portMAX_DELAY) == pdTRUE) {
+      memcpy(pkt + 1, &t, sizeof(t));
+      esp_now_send(UAV_MAC, pkt, sizeof(pkt));
+    }
+  }
+}
+
+// Worker 6: Takes commands from mailbox and sends to Radio
 void espNowTxTask(void* pv) {
   (void)pv;
   CommandPayload c;
@@ -266,6 +287,7 @@ void setup() {
   qTelemToSerial = xQueueCreate(10, sizeof(TelemetryPayload));
   qCmdToSerial   = xQueueCreate(10, sizeof(CommandPayload));
   qMsgToSerial   = xQueueCreate(10, 64);
+  qTelemToNow    = xQueueCreate(10, sizeof(TelemetryPayload));
   qCmdToNow      = xQueueCreate(10, sizeof(CommandPayload));
 
   // Hire the Workers (Tasks)
@@ -273,6 +295,7 @@ void setup() {
   xTaskCreate(serialTxCmdTask,   "TxCmd",   4096, NULL, 2, NULL);
   xTaskCreate(serialTxMsgTask,   "TxMsg",   4096, NULL, 2, NULL);
   xTaskCreate(serialRxTask,      "SerRx",   4096, NULL, 2, NULL);
+  xTaskCreate(radioTxTelemTask,  "RadTelem",4096, NULL, 2, NULL);
   xTaskCreate(espNowTxTask,      "NowTx",   4096, NULL, 2, NULL);
 
   Serial.println("====================================");
