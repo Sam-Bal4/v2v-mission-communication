@@ -15,7 +15,7 @@ TELEM_SEND_HZ = 5    # Broadcast frequency
 
 # ------------------- UGV Setup (DroneKit) -------------------
 print("==========================================")
-print("   UGV GROUND STATION - FORCED ARMING")
+print("   UGV GROUND STATION - HYBRID ARMING")
 print("==========================================")
 print(f"[Ground] Connecting to UGV at {UGV_CONTROL_PORT}...")
 
@@ -29,50 +29,49 @@ except Exception as e:
 def broadcast_status(bridge, seq):
     """Sends current state back to the UAV."""
     armed_val = 1 if vehicle.armed else 0
-    # Map mode name to protocol index
+    
+    # Mode mapping
     m = vehicle.mode.name
     mode_idx = v2v_bridge.MODE_INITIAL
     if m == "GUIDED": mode_idx = v2v_bridge.MODE_GUIDED
     elif m == "AUTO": mode_idx = v2v_bridge.MODE_AUTO
     elif m == "LAND": mode_idx = v2v_bridge.MODE_LAND
     
+    # Safety Bitfield (estop byte)
+    # Bit 0-3: Mode
+    # Bit 4: is_armable
+    # Bit 5: GPS (1 if fix > 0)
+    armable_bit = 0x10 if vehicle.is_armable else 0x00
+    gps_bit = 0x20 if (vehicle.gps_0.fix_type > 0) else 0x00
+    safety_byte = (mode_idx & 0x0F) | armable_bit | gps_bit
+    
     t_ms = int(time.time() * 1000) & 0xFFFFFFFF
-    bridge.send_telemetry(seq, t_ms, 0.0, 0.0, armed_val, mode_idx)
+    bridge.send_telemetry(seq, t_ms, 0.0, 0.0, armed_val, safety_byte)
 
 def arm_and_move(bridge):
-    """Robust Arm -> Disarm -> Arm sequence and then move."""
-    print("\n[Ground] >>> INITIATING ULTRA-AGGRESSIVE ARM SEQUENCE")
+    """Hybrid Arming: Arm in current mode first, then switch to GUIDED."""
+    print("\n[Ground] >>> INITIATING REMOTE-STYLE FORCE ARM SEQUENCE")
     
-    # 1. Wait for safety
-    print(f"[Ground] Checking Safety... Armable: {vehicle.is_armable}")
-    while not vehicle.is_armable:
-        print(f"  [WAIT] Vehicle NOT ARMABLE (GPS: {vehicle.gps_0.fix_type}, Mode: {vehicle.mode.name})")
-        broadcast_status(bridge, 0)
-        time.sleep(1)
+    # 1. Non-blocking Safety Check
+    if not vehicle.is_armable:
+        print(f"!!! [WARNING] PRE-ARM CHECKS FAILED (GPS: {vehicle.gps_0.fix_type}) !!!")
+        print("    [NOTICE] Mimicking Remote Control: Attempting to bypass safety...")
     
-    # 2. Set Mode
-    print(f"  [MODE] Switching {vehicle.mode.name} -> GUIDED")
-    vehicle.mode = VehicleMode("GUIDED")
-    while vehicle.mode.name != "GUIDED":
-        broadcast_status(bridge, 0)
-        time.sleep(0.1)
-    
-    # --- FORCED SEQUENCE: ARM -> DISARM -> ARM ---
+    # 2. ARM SEQUENCE (Start in Current Mode)
+    print(f"  [ARM] Stage 1: Attempting to ARM in {vehicle.mode.name} mode...")
     
     for attempt in ["FIRST ARM", "RESET DISARM", "FINAL ARM"]:
         state = True if "ARM" in attempt else False
         print(f"  [FORCE-SYNC] Initiating {attempt}...")
         
-        # Try to force the state up to 3 times per stage
         for retry in range(3):
             print(f"    - Attempt {retry+1}/3: Setting vehicle.armed to {state}")
             vehicle.armed = state
             
-            # Wait up to 3s for confirmation
+            # Wait for confirmation
             timeout = time.time() + 3
             while vehicle.armed != state:
-                if time.time() > timeout:
-                    break
+                if time.time() > timeout: break
                 broadcast_status(bridge, 0)
                 time.sleep(0.1)
             
@@ -82,17 +81,28 @@ def arm_and_move(bridge):
             else:
                 print(f"    - Hardware unresponsive, retrying...")
         
-        time.sleep(1.0) # Pause between stages for the FCU to breathe
+        time.sleep(1.0) 
 
     if not vehicle.armed:
-        print("!!! [CRITICAL] UGV failed to reach FINAL ARM. Move aborted. !!!")
+        print("!!! [CRITICAL] UGV failed to ARM despite bypass. Check Hardware. !!!")
         return
+
+    # 3. Mode Switch (Switch to GUIDED only AFTER arming)
+    print(f"  [MODE] Switching {vehicle.mode.name} -> GUIDED for Move...")
+    vehicle.mode = VehicleMode("GUIDED")
+    m_timeout = time.time() + 5
+    while vehicle.mode.name != "GUIDED" and time.time() < m_timeout:
+        broadcast_status(bridge, 0)
+        time.sleep(0.1)
+    
+    if vehicle.mode.name != "GUIDED":
+        print(f"!!! [WARNING] Mode Switch to GUIDED Failed. Moving in {vehicle.mode.name} anyway. !!!")
 
     print("************************************")
     print("!!! UGV FULLY ARMED AND SYNCED !!!")
     print("************************************")
     
-    # 3. Move forward
+    # 4. Move forward
     print(f"[Ground] Moving Forward {DIST_M}m...")
     msg = vehicle.message_factory.set_position_target_local_ned_encode(
         0, 0, 0, mavutil.mavlink.MAV_FRAME_BODY_NED, 0b0000111111000111,
@@ -106,7 +116,7 @@ def arm_and_move(bridge):
         broadcast_status(bridge, 0)
         time.sleep(0.1)
     
-    # 4. Stop and Safety Disarm
+    # 5. Stop and Safety Disarm
     print("[Ground] Stop. Safety Disarm.")
     stop_msg = vehicle.message_factory.set_position_target_local_ned_encode(
         0, 0, 0, mavutil.mavlink.MAV_FRAME_BODY_NED, 0b0000111111000111,
@@ -114,7 +124,7 @@ def arm_and_move(bridge):
     vehicle.send_mavlink(stop_msg)
     vehicle.armed = False
     broadcast_status(bridge, 0)
-    print("[Ground] Mission Complete. Back to Standby.\n")
+    print("[Ground] Mission Complete.\n")
 
 # ------------------- MAIN LOOP -------------------
 def main():
@@ -122,7 +132,6 @@ def main():
     bridge = v2v_bridge.V2VBridge(ESP32_BRIDGE_PORT, name="Ground-Station")
     try:
         bridge.connect()
-        # --- REVERSE HELLO (Debug) ---
         print("[Ground] Sending Hello to Air...")
         bridge.send_message("hi flying rat . we connected")
     except Exception as e:
@@ -134,25 +143,22 @@ def main():
     seq = 0
     try:
         while True:
-            # 1. Listen for debug string from UAV
+            # 1. READ AIR STATUS & MESSAGES
             msg = bridge.get_message()
-            if msg:
-                print(f"\n>>> [AIR MESSAGE]: {msg}\n")
+            if msg: print(f"\n>>> [AIR MESSAGE]: {msg}\n")
             
-            # 2. READ AIR STATUS
             air_telem = bridge.get_telemetry()
             if air_telem:
-                seq_a, t_ms_a, vx_a, vy_a, armed_a, mode_a = air_telem
-                a_status = "ARMED" if armed_a == 1 else "DISARMED"
-                # print(f"    [RADIO] UAV STATUS: {a_status}") # Suppress for clean console
+                # air_status_str = "ARMED" if air_telem[4] == 1 else "DISARMED"
+                pass
 
-            # 3. BROADCAST STATUS to UAV
+            # 2. BROADCAST HEARTBEAT
             if seq % 10 == 0:
-                print(f"[Ground] Heartbeat... Mode: {vehicle.mode.name} | Armed: {vehicle.armed}")
+                print(f"[Ground] Heartbeat... Mode: {vehicle.mode.name} | Armed: {vehicle.armed} | GPS: {vehicle.gps_0.fix_type}")
             broadcast_status(bridge, seq)
             seq += 1
 
-            # 4. Listen for mission command
+            # 3. Listen for mission command
             cmd = bridge.get_command()
             if cmd:
                 cmdSeq, cmdVal, eStopFlag = cmd
