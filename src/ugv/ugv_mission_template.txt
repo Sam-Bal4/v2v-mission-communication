@@ -16,7 +16,7 @@ ESP32_BRIDGE_PORT = "/dev/ttyUSB0"  # the esp32 radio bridge usb wire
 SPEED_MPS = 1.6      # how much juice to give the motors
 TELEM_SEND_HZ = 5    # how many times per second to tell the drone where we are
 
-# step 1 is to connect to the actual robot brain
+# step 1 is to connect to the actual ugv brain
 print("CONNECTING TO UGV") # just a log
 try:
     vehicle = connect(UGV_CONTROL_PORT, wait_ready=True, baud=115200) # opening the link
@@ -45,11 +45,11 @@ def arm_and_move(bridge): # the hybrid arming sequence to bypass GPS checks
     # force arming in manual mode then flipping to guided
     for attempt in ["ARM", "DISARM", "ARM"]: # toggling state to wake up pixhawk
         state = True if attempt == "ARM" else False # check state
-        vehicle.armed = state # tell the robot to change
+        vehicle.armed = state # tell the ugv to change
         time.sleep(1.0) # wait for hardware to catch up
     
     vehicle.mode = VehicleMode("GUIDED") # force into guided mode for code control
-    print("ROBOT ARMED AND READY") # finished the hack
+    print("ugv ARMED AND READY") # finished the hack
 
 def main(): # the main boss function
     bridge = v2v_bridge.V2VBridge(ESP32_BRIDGE_PORT, name="UGV Bridge") # setup bridge

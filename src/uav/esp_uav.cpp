@@ -1,276 +1,276 @@
-#include <Arduino.h> // pulls in all the basic serial and time stuff
-#include <WiFi.h> // needed for the radio hardware to even turn on
-#include <esp_now.h> // the actual radio api for sending raw bytes
+#include <Arduino.h> // pulls in all the basic serial and time crap so the board actually works
+#include <WiFi.h> // i had to add this just so the radio hardware even wakes up
+#include <esp_now.h> // the actual api for screaming raw bytes into the air
 
-#include "freertos/FreeRTOS.h" // the foundation for the multitasking
-#include "freertos/task.h" // lets us hire background workers
-#include "freertos/queue.h" // the mailboxes for safer data handoffs
+#include "freertos/FreeRTOS.h" // the foundation for all the multitasking stuff i did
+#include "freertos/task.h" // lets me hire background workers to do the chores
+#include "freertos/queue.h" // mailboxes so the workers dont crash the chip when handing off data
 
-// mac address of the ugv (ground station) so we know where to scream
-static uint8_t UGV_MAC[6] = {0xF8, 0xB3, 0xB7, 0x20, 0x69, 0xC0}; 
+// mac address of the ground rover so we know exactly where to scream the data
+static uint8_t UGV_MAC[6] = {0xF8, 0xB3, 0xB7, 0x20, 0x69, 0xC0}; // the actual mac address i hardcoded so it doesnt get lost
 
-// binary markers so we can find the start of a real message in the usb noise
-static const uint8_t SOF = 0xAA; // 170 (10101010) start of packet
-static const uint8_t TYPE_TELEM = 1; // code for status data
-static const uint8_t TYPE_CMD   = 2; // code for instructions
-static const uint8_t TYPE_MSG   = 3; // code for raw text
+// binary markers i added so we can actually find real messages in all the usb noise
+static const uint8_t SOF = 0xAA; // the wait for it byte that tells us a packet is starting
+static const uint8_t TYPE_TELEM = 1; // code for when the robot is sending its status
+static const uint8_t TYPE_CMD   = 2; // code for when i am bullying it with instructions
+static const uint8_t TYPE_MSG   = 3; // code for just sending raw text junk
 
-// matches the memory layout of the python telemetry packet
-typedef struct __attribute__((packed)) {
-  uint32_t seq;    // counter for missing packets
-  uint32_t t_ms;   // uav time clock
-  float vx;        // speed data
-  float vy;        // speed data
-  uint8_t marker;  // true/false flag
-  uint8_t estop;   // abort mission flag
-} TelemetryPayload;
+// i made this match the exact memory layout of the python script
+typedef struct __attribute__((packed)) { // i had to pack this so the compiler doesnt add stupid empty spaces
+  uint32_t seq;    // counter to see if the radio dropped any packets
+  uint32_t t_ms;   // drone time clock
+  float vx;        // speed data so we know how fast the wheels are going
+  float vy;        // more speed data cause why not
+  uint8_t marker;  // random true or false detection bits
+  uint8_t estop;   // this is where i sneak in the safety flags and abort stuff
+} TelemetryPayload; // finishing up the status struct
 
-// matches the memory layout for wheel robot commands
-typedef struct __attribute__((packed)) {
-  uint32_t cmdSeq; // unique id for the move
-  uint8_t  cmd;    // 1=arm, 2=disarm, etc
-  uint8_t  estop;  // emergency stop bit
-} CommandPayload;
+// layout for the commands we shove down to the rover
+typedef struct __attribute__((packed)) { // squishing the memory again
+  uint32_t cmdSeq; // unique id so the robot knows which move is which
+  uint8_t  cmd;    // the actual code like 1 to arm or 2 to disarm
+  uint8_t  estop;  // the please stop before you crash button
+} CommandPayload; // finishing the command struct
 
-// mailboxes for the background tasks to pass bytes around
-static QueueHandle_t qTelemToNow  = nullptr; // usb -> radio
-static QueueHandle_t qMsgToNow    = nullptr; // usb strings -> radio
-static QueueHandle_t qCmdToNow    = nullptr; // commands for ground 
-static QueueHandle_t qTelemToSerial = nullptr; // radio -> usb 
-static QueueHandle_t qCmdToSerial = nullptr; // instructions from radio
-static QueueHandle_t qMsgToSerial = nullptr; // text caught from air
+// mailboxes i had to set up so the tasks can pass bytes around safely
+static QueueHandle_t qTelemToNow  = nullptr; // from the usb wire straight to the radio
+static QueueHandle_t qMsgToNow    = nullptr; // shoving text from usb into the air
+static QueueHandle_t qCmdToNow    = nullptr; // commands waiting to go to the ground
+static QueueHandle_t qTelemToSerial = nullptr; // catching radio stuff and shoving it down usb
+static QueueHandle_t qCmdToSerial = nullptr; // instructions caught from the air
+static QueueHandle_t qMsgToSerial = nullptr; // raw text caught from the air
 
-// lock to stop workers from typing on the usb wire at the same time
-static SemaphoreHandle_t serialMutex = nullptr; 
+// lock i made to stop the workers from typing on the usb wire at the exact same time
+static SemaphoreHandle_t serialMutex = nullptr; // keeping it null to start
 
-// math to check if the data got scrambled during the radio hop
-static uint8_t checksum_xor(uint8_t type, uint8_t len, const uint8_t* payload) {
-  uint8_t c = type ^ len; // mix the header
-  for (uint8_t i = 0; i < len; i++) c ^= payload[i]; // xor every byte
-  return c; // result is the digital seal
-}
+// boring math i did to check if the data got scrambled during the radio hop
+static uint8_t checksum_xor(uint8_t type, uint8_t len, const uint8_t* payload) { // passing in the data
+  uint8_t c = type ^ len; // mix the header bytes together first
+  for (uint8_t i = 0; i < len; i++) c ^= payload[i]; // do xor magic on every single byte of the meat
+  return c; // what we get back is the digital signature
+} // end of the math function
 
-// wraps raw data in the protocol frame so the jetson can decode it
-static void serial_send_frame(uint8_t type, const uint8_t* payload, uint8_t len) {
-  uint8_t chk = checksum_xor(type, len, payload); // calculate seal
-  if (xSemaphoreTake(serialMutex, portMAX_DELAY) == pdTRUE) { // wait for access
-    Serial.write(SOF);      // [1] start
-    Serial.write(type);     // [2] what is this
-    Serial.write(len);      // [3] how big
-    if (len) Serial.write(payload, len); // [4] the meat
-    Serial.write(chk);      // [5] checksum fingerprint
-    xSemaphoreGive(serialMutex); // let others use the wire
-  }
-}
+// wraps the raw data in our custom frame so the jetson brain can actually read it
+static void serial_send_frame(uint8_t type, const uint8_t* payload, uint8_t len) { // taking in the raw chunk
+  uint8_t chk = checksum_xor(type, len, payload); // calculate the seal so we know it is legit
+  if (xSemaphoreTake(serialMutex, portMAX_DELAY) == pdTRUE) { // wait until no one else is using the wire
+    Serial.write(SOF);      // blast the start byte
+    Serial.write(type);     // tell it what kind of data this is
+    Serial.write(len);      // tell it how big the chunk is
+    if (len) Serial.write(payload, len); // shove the actual binary meat down the wire if there is any
+    Serial.write(chk);      // add the fingerprint at the very end
+    xSemaphoreGive(serialMutex); // unlock so the other workers can use the wire again
+  } // end of the lock zone
+} // end of the sending frame function
 
-// triggers every time a packet hits the uav's antenna
-static void onDataRecv(const uint8_t* mac, const uint8_t* data, int len) {
-  if (len < 1) return; // ignore ghost packets
-  uint8_t fType = data[0]; // first byte is always the type
+// this triggers literally every time a packet smacks into the antenna
+static void onDataRecv(const uint8_t* mac, const uint8_t* data, int len) { // grabbing the mac and raw bytes
+  if (len < 1) return; // ignore it if its just ghost static
+  uint8_t fType = data[0]; // the very first byte is always the type label
 
-  // echo the radio event to the jetson for debugging
-  char dbg[64]; // temporary buffer for string
-  snprintf(dbg, 64, "ESP: Got Radio PKT type %d len %d", fType, len);
-  if (qMsgToSerial) { // if mailbox exists
-    uint8_t dBuf[64]; // data array
-    memset(dBuf, 0, 64); // clear it
-    memcpy(dBuf, dbg, strlen(dbg)); // copy text
-    xQueueSend(qMsgToSerial, dBuf, 0); // ship it to usb task
-  }
+  // echo the radio event back to the jetson so i can debug it
+  char dbg[64]; // temp holding area for the string
+  snprintf(dbg, 64, "ESP: Got Radio PKT type %d len %d", fType, len); // formatting the debug text
+  if (qMsgToSerial) { // check if the mailbox is even there
+    uint8_t dBuf[64]; // tiny data array
+    memset(dBuf, 0, 64); // clean out whatever garbage was in memory
+    memcpy(dBuf, dbg, strlen(dbg)); // copy the actual text over
+    xQueueSend(qMsgToSerial, dBuf, 0); // drop it in the box for the usb worker
+  } // end of debug push
 
-  // sort incoming radio data into the right mailbox
-  if (fType == TYPE_TELEM && len >= (int)sizeof(TelemetryPayload)) {
-    TelemetryPayload t; // create struct
-    memcpy(&t, data + 1, sizeof(t)); // extract content
-    if (qTelemToSerial) xQueueSend(qTelemToSerial, &t, 0); // hand off to usb
-  }
-  else if (fType == TYPE_CMD && len >= (int)sizeof(CommandPayload)) {
-    CommandPayload cmd; // create struct
-    memcpy(&cmd, data + 1, sizeof(cmd)); // extract content
-    if (qCmdToSerial) xQueueSend(qCmdToSerial, &cmd, 0); // hand off to usb
-  }
-  else if (fType == TYPE_MSG) {
-    uint8_t msgBuf[64]; // text buffer
-    memset(msgBuf, 0, 64); // clean it
-    uint8_t msgLen = (len - 1 > 64) ? 64 : len - 1; // clip if too long
-    memcpy(msgBuf, data + 1, msgLen); // extract string
-    if (qMsgToSerial) xQueueSend(qMsgToSerial, msgBuf, 0); // hand off to usb
-  }
-}
+  // sorting the radio data into the right mailbox so it doesnt get lost
+  if (fType == TYPE_TELEM && len >= (int)sizeof(TelemetryPayload)) { // checking if it is a valid status packet
+    TelemetryPayload t; // make a blank struct
+    memcpy(&t, data + 1, sizeof(t)); // rip the content out of the raw bytes
+    if (qTelemToSerial) xQueueSend(qTelemToSerial, &t, 0); // hand it off to the usb guy
+  } // end of telem check
+  else if (fType == TYPE_CMD && len >= (int)sizeof(CommandPayload)) { // checking if it is a command
+    CommandPayload cmd; // make a blank command struct
+    memcpy(&cmd, data + 1, sizeof(cmd)); // extract the juicy bits
+    if (qCmdToSerial) xQueueSend(qCmdToSerial, &cmd, 0); // pass it down the line
+  } // end of cmd check
+  else if (fType == TYPE_MSG) { // if it is just a text message
+    uint8_t msgBuf[64]; // buffer for random text
+    memset(msgBuf, 0, 64); // wipe it clean first
+    uint8_t msgLen = (len - 1 > 64) ? 64 : len - 1; // i had to add this to clip it if the text is way too long
+    memcpy(msgBuf, data + 1, msgLen); // grab the string
+    if (qMsgToSerial) xQueueSend(qMsgToSerial, msgBuf, 0); // shove it in the mail
+  } // end of msg check
+} // end of radio receive trigger
 
-// logical states for unpacking the stream from the jetson usb
-enum ParseState { WAIT_SOF, WAIT_TYPE, WAIT_LEN, WAIT_PAYLOAD, WAIT_CHK };
-typedef struct {
-  ParseState st; // current mode
-  uint8_t type; // expected packet type
-  uint8_t len; // expected length
-  uint8_t idx; // how many we got so far
-  uint8_t buf[64]; // holding area
-} SerialParser;
+// the states i made for the gatekeeper to unpack the usb stream
+enum ParseState { WAIT_SOF, WAIT_TYPE, WAIT_LEN, WAIT_PAYLOAD, WAIT_CHK }; // all the modes we can be stuck in
+typedef struct { // making a struct to hold the gatekeeper memory
+  ParseState st; // what mode we are currently stuck in
+  uint8_t type; // what kind of packet we think this is
+  uint8_t len; // how long it should be
+  uint8_t idx; // how many bytes we actually caught so far
+  uint8_t buf[64]; // where we shove the bytes while waiting
+} SerialParser; // naming the struct
 
-// resets the parser to hunt for the lead 0xAA byte
-static void parser_init(SerialParser* p) { p->st = WAIT_SOF; }
+// completely resets the parser to go back to hunting for that start byte
+static void parser_init(SerialParser* p) { p->st = WAIT_SOF; } // just forcing the state back to zero
 
-// feeds one byte at a time through the grammar rules
-static bool parser_step(SerialParser* p, uint8_t b, uint8_t* outType, uint8_t* outLen, uint8_t* outPayload) {
-  switch (p->st) {
-    case WAIT_SOF: if (b == SOF) p->st = WAIT_TYPE; break; // found start
-    case WAIT_TYPE: p->type = b; p->st = WAIT_LEN; break; // got the label
-    case WAIT_LEN:
-      p->len = b; // save expected size
-      if (p->len > 64) { parser_init(p); break; } // abort if it's too big
-      p->idx = 0; // reset counter
-      p->st = (p->len == 0) ? WAIT_CHK : WAIT_PAYLOAD; // move forward
-      break;
-    case WAIT_PAYLOAD:
-      p->buf[p->idx++] = b; // collect data
-      if (p->idx >= p->len) p->st = WAIT_CHK; // got it all
-      break;
-    case WAIT_CHK: {
-      uint8_t expected = checksum_xor(p->type, p->len, p->buf); // check fingerprint
-      if (b == expected) { // if valid 100%
-        *outType = p->type; *outLen = p->len; // export info
-        memcpy(outPayload, p->buf, p->len); // export payload
-        parser_init(p); return true; // tell caller we got one
-      }
-      parser_init(p); break; // bad seal, restart
-    }
-  }
-  return false; // still hunting
-}
+// i feed it one byte at a time and see if it passes the vibe check
+static bool parser_step(SerialParser* p, uint8_t b, uint8_t* outType, uint8_t* outLen, uint8_t* outPayload) { // checking the grammar rules
+  switch (p->st) { // checking what state we are stuck in
+    case WAIT_SOF: if (b == SOF) p->st = WAIT_TYPE; break; // yay we finally found the start byte
+    case WAIT_TYPE: p->type = b; p->st = WAIT_LEN; break; // caught the type label
+    case WAIT_LEN: // time to figure out the length
+      p->len = b; // saving how big it told us it was
+      if (p->len > 64) { parser_init(p); break; } // if its stupidly big just throw it in the trash and restart
+      p->idx = 0; // zero out the counter
+      p->st = (p->len == 0) ? WAIT_CHK : WAIT_PAYLOAD; // jump to the next step
+      break; // done with length
+    case WAIT_PAYLOAD: // scooping up the meat
+      p->buf[p->idx++] = b; // hoarding the data one byte at a time
+      if (p->idx >= p->len) p->st = WAIT_CHK; // cool we got all of it
+      break; // done with payload
+    case WAIT_CHK: { // time for the math check
+      uint8_t expected = checksum_xor(p->type, p->len, p->buf); // doing the math to check the fingerprint
+      if (b == expected) { // if the math actually checks out
+        *outType = p->type; *outLen = p->len; // spit out the info
+        memcpy(outPayload, p->buf, p->len); // spit out the meat
+        parser_init(p); return true; // reset and yell that we got a good packet
+      } // end of good math
+      parser_init(p); break; // the seal was bad so some static messed it up just restart
+    } // end of check block
+  } // end of switch
+  return false; // nope still looking for more bytes
+} // end of parser step
 
-// Background Worker: Listens to the Jetson for instructions
-void serialRxTask(void* pv) {
-  SerialParser parser; // local gatekeeper
-  parser_init(&parser); // reset state
-  uint8_t fType, fLen, payload[64]; // temporary variables
-  for (;;) { // infinite loop
-    while (Serial.available() > 0) { // check if bytes are in usb buffer
-      uint8_t b = (uint8_t)Serial.read(); // pull one byte
-      if (parser_step(&parser, b, &fType, &fLen, payload)) { // logic check
-        if (fType == TYPE_TELEM && fLen == sizeof(TelemetryPayload)) {
-          TelemetryPayload t; memcpy(&t, payload, sizeof(t)); // extract
-          if (qTelemToNow) xQueueSend(qTelemToNow, &t, 0); // hand to radio task
-        }
-        else if (fType == TYPE_CMD && fLen == sizeof(CommandPayload)) {
-          CommandPayload c; memcpy(&c, payload, sizeof(c)); // extract
-          if (qCmdToNow) xQueueSend(qCmdToNow, &c, 0); // hand to radio task
-        }
-        else if (fType == TYPE_MSG) {
-            uint8_t msgBuf[64]; memset(msgBuf, 0, 64); // extract
-            memcpy(msgBuf, payload, fLen); // hand to radio task
-            if (qMsgToNow) xQueueSend(qMsgToNow, msgBuf, 0);
-        }
-      }
-    }
-    vTaskDelay(pdMS_TO_TICKS(2)); // wait 2ms before checking again
-  }
-}
+// the background worker i hired just to listen to the jetson 24 7
+void serialRxTask(void* pv) { // passing the void pointer cause freertos wants it
+  SerialParser parser; // creating our local gatekeeper
+  parser_init(&parser); // making sure he starts fresh
+  uint8_t fType, fLen, payload[64]; // temporary junk variables
+  for (;;) { // loop forever cause workers dont get breaks
+    while (Serial.available() > 0) { // looking if there are any bytes sitting in the usb port
+      uint8_t b = (uint8_t)Serial.read(); // yank one byte out
+      if (parser_step(&parser, b, &fType, &fLen, payload)) { // run it through the gatekeeper logic i wrote
+        if (fType == TYPE_TELEM && fLen == sizeof(TelemetryPayload)) { // if its status data
+          TelemetryPayload t; memcpy(&t, payload, sizeof(t)); // rip the status out
+          if (qTelemToNow) xQueueSend(qTelemToNow, &t, 0); // shove it to the radio guy
+        } // end of telem push
+        else if (fType == TYPE_CMD && fLen == sizeof(CommandPayload)) { // if its a command
+          CommandPayload c; memcpy(&c, payload, sizeof(c)); // rip the command out
+          if (qCmdToNow) xQueueSend(qCmdToNow, &c, 0); // pass it to the radio task
+        } // end of cmd push
+        else if (fType == TYPE_MSG) { // if its just text
+            uint8_t msgBuf[64]; memset(msgBuf, 0, 64); // blank out a buffer
+            memcpy(msgBuf, payload, fLen); // copy the text
+            if (qMsgToNow) xQueueSend(qMsgToNow, msgBuf, 0); // throw it in the box
+        } // end of msg push
+      } // end of valid packet check
+    } // end of reading usb buffer
+    vTaskDelay(pdMS_TO_TICKS(2)); // force it to chill for 2ms so the chip doesnt melt
+  } // end of infinite loop
+} // end of serial worker
 
-// Background Worker: Blasts status updates over the air
-void radioTxTelemTask(void* pv) {
-  TelemetryPayload t; // create storage
-  uint8_t pkt[1 + sizeof(TelemetryPayload)]; // packet buffer
-  pkt[0] = TYPE_TELEM; // header id
-  for (;;) { // infinite loop
-    if (xQueueReceive(qTelemToNow, &t, portMAX_DELAY) == pdTRUE) { // wait for mailbox
-      memcpy(pkt + 1, &t, sizeof(t)); // load payload
-      esp_now_send(UGV_MAC, pkt, sizeof(pkt)); // blast it out
-    }
-  }
-}
+// the heavy hitter worker that screams status updates into the air
+void radioTxTelemTask(void* pv) { // standard task definition
+  TelemetryPayload t; // make some storage
+  uint8_t pkt[1 + sizeof(TelemetryPayload)]; // make the full packet buffer
+  pkt[0] = TYPE_TELEM; // slap the type label on the front
+  for (;;) { // loop forever obviously
+    if (xQueueReceive(qTelemToNow, &t, portMAX_DELAY) == pdTRUE) { // literally just sleep until a letter shows up in the mailbox
+      memcpy(pkt + 1, &t, sizeof(t)); // stuff the envelope
+      esp_now_send(UGV_MAC, pkt, sizeof(pkt)); // blast it as hard as we can to the rover mac address
+    } // end of mailbox check
+  } // end of infinite loop
+} // end of telem worker
 
-// Background Worker: Blasts mission commands over the air
-void radioTxCmdTask(void* pv) {
-  CommandPayload c; // create storage
-  uint8_t pkt[1 + sizeof(CommandPayload)]; // packet buffer
-  pkt[0] = TYPE_CMD; // header id
-  for (;;) { // infinite loop
-    if (xQueueReceive(qCmdToNow, &c, portMAX_DELAY) == pdTRUE) { // wait for mailbox
-      memcpy(pkt + 1, &c, sizeof(c)); // load payload
-      esp_now_send(UGV_MAC, pkt, sizeof(pkt)); // blast it out
-    }
-  }
-}
+// worker that strictly handles bullying the rover with commands
+void radioTxCmdTask(void* pv) { // standard task definition
+  CommandPayload c; // storage again
+  uint8_t pkt[1 + sizeof(CommandPayload)]; // packet buffer again
+  pkt[0] = TYPE_CMD; // slap the command label on
+  for (;;) { // never ending loop
+    if (xQueueReceive(qCmdToNow, &c, portMAX_DELAY) == pdTRUE) { // wait for someone to drop a command in
+      memcpy(pkt + 1, &c, sizeof(c)); // pack the data in
+      esp_now_send(UGV_MAC, pkt, sizeof(pkt)); // throw it over the radio
+    } // end of mailbox check
+  } // end of infinite loop
+} // end of cmd worker
 
-// Background Worker: Blasts talk/debug text over the air
-void radioTxMsgTask(void* pv) {
-  uint8_t payload[64]; // raw byte buffer
-  uint8_t pkt[1 + 64]; // total size
-  pkt[0] = TYPE_MSG; // header id
-  for (;;) { // infinite loop
-    if (xQueueReceive(qMsgToNow, payload, portMAX_DELAY) == pdTRUE) { // wait for text
-      uint8_t len = 0; while (len < 64 && payload[len] != 0) len++; // find string end
-      if (len == 0) continue; // skip if empty
-      memcpy(pkt + 1, payload, len); // load string
-      esp_now_send(UGV_MAC, pkt, 1 + len); // blast it out
-    }
-  }
-}
+// worker for sending random debug text over the air
+void radioTxMsgTask(void* pv) { // standard task definition
+  uint8_t payload[64]; // holding area for raw bytes
+  uint8_t pkt[1 + 64]; // max size packet
+  pkt[0] = TYPE_MSG; // tag it as a message
+  for (;;) { // endless loop
+    if (xQueueReceive(qMsgToNow, payload, portMAX_DELAY) == pdTRUE) { // wake up when text arrives
+      uint8_t len = 0; while (len < 64 && payload[len] != 0) len++; // i had to do this to manually find where the string actually ends
+      if (len == 0) continue; // if its empty just ignore it cause why bother
+      memcpy(pkt + 1, payload, len); // copy the actual letters
+      esp_now_send(UGV_MAC, pkt, 1 + len); // scream the text to the other side
+    } // end of mailbox check
+  } // end of infinite loop
+} // end of msg worker
 
-// Background Worker: Shoves air data up the wire to the Jetson
-void serialTxTask(void* pv) {
-  CommandPayload c; TelemetryPayload t; uint8_t m[64]; // storage
-  for (;;) { // infinite loop
-    if (xQueueReceive(qCmdToSerial, &c, 0) == pdTRUE) { // check commands
-      serial_send_frame(TYPE_CMD, (const uint8_t*)&c, (uint8_t)sizeof(c)); // ship it
-    }
-    if (xQueueReceive(qTelemToSerial, &t, 0) == pdTRUE) { // check status
-      serial_send_frame(TYPE_TELEM, (const uint8_t*)&t, (uint8_t)sizeof(t)); // ship it
-    }
-    if (xQueueReceive(qMsgToSerial, m, 0) == pdTRUE) { // check text
-      uint8_t len = 0; while (len < 64 && m[len] != 0) len++; // find end
-      if (len > 0) serial_send_frame(TYPE_MSG, m, len); // ship it
-    }
-    vTaskDelay(pdMS_TO_TICKS(5)); // relax the cpu for 5ms
-  }
-}
+// this is the guy who catches radio stuff and shoves it up the usb to the brain
+void serialTxTask(void* pv) { // standard task definition
+  CommandPayload c; TelemetryPayload t; uint8_t m[64]; // places to put the crap we catch
+  for (;;) { // working forever
+    if (xQueueReceive(qCmdToSerial, &c, 0) == pdTRUE) { // check if any commands came in from the air
+      serial_send_frame(TYPE_CMD, (const uint8_t*)&c, (uint8_t)sizeof(c)); // package it and shove it up the usb
+    } // end of cmd check
+    if (xQueueReceive(qTelemToSerial, &t, 0) == pdTRUE) { // check if the rover sent a status update
+      serial_send_frame(TYPE_TELEM, (const uint8_t*)&t, (uint8_t)sizeof(t)); // cram it into the usb port
+    } // end of telem check
+    if (xQueueReceive(qMsgToSerial, m, 0) == pdTRUE) { // check for random text
+      uint8_t len = 0; while (len < 64 && m[len] != 0) len++; // count how long the text is
+      if (len > 0) serial_send_frame(TYPE_MSG, m, len); // push the text to the computer
+    } // end of msg check
+    vTaskDelay(pdMS_TO_TICKS(5)); // i let this task sleep for 5ms so it doesnt hog the whole cpu
+  } // end of infinite loop
+} // end of serial tx worker
 
-// initial setup when the power turns on
-void setup() {
-  Serial.begin(115200); // start the data connection to jetson
-  delay(500); // wait for voltages to settle
+// the very first setup stuff i run when the power turns on
+void setup() { // starting up
+  Serial.begin(115200); // crank up the serial speed to talk to the jetson
+  delay(500); // wait half a second cause the hardware is slow to wake up
 
-  WiFi.mode(WIFI_STA); // put the card in station mode for espnow
-  if (esp_now_init() != ESP_OK) { // wake up the radio driver
-    Serial.println("Error initializing ESP-NOW"); // failed
-    while(true) delay(1000); // freeze here
-  }
+  WiFi.mode(WIFI_STA); // force the wifi chip into station mode cause esp now needs it
+  if (esp_now_init() != ESP_OK) { // kick the radio driver to wake up
+    Serial.println("Error initializing ESP-NOW"); // complain if the radio is broken
+    while(true) delay(1000); // just give up and freeze forever
+  } // end of radio check
 
-  // hand the listener function to the radio controller
-  esp_now_register_recv_cb(onDataRecv);
+  // i had to pass my listener function to the radio so it knows what to do on receive
+  esp_now_register_recv_cb(onDataRecv); // hooking up my listener function
 
-  // tell the radio who we are allowed to talk to
-  esp_now_peer_info_t peer = {}; // empty definition
-  memcpy(peer.peer_addr, UGV_MAC, 6); // set ugv address
-  peer.channel = 0; peer.encrypt = false; // defaults
-  esp_now_add_peer(&peer); // register this peer
+  // explicitly telling the radio who it is allowed to even look at
+  esp_now_peer_info_t peer = {}; // blank peer object
+  memcpy(peer.peer_addr, UGV_MAC, 6); // copying the rover mac address in
+  peer.channel = 0; peer.encrypt = false; // zero channel and no encryption cause encryption is too slow
+  esp_now_add_peer(&peer); // officially register it
 
-  // create the multi-worker lock
-  serialMutex = xSemaphoreCreateMutex();
+  // i made the lock here so workers dont fight over the usb
+  serialMutex = xSemaphoreCreateMutex(); // creating the actual lock
 
-  // physically create the data buffers
-  qTelemToNow  = xQueueCreate(10, sizeof(TelemetryPayload)); // 10 deep box
-  qCmdToNow    = xQueueCreate(10, sizeof(CommandPayload)); // 10 deep box
-  qMsgToNow    = xQueueCreate(10, 64); // string box
-  qTelemToSerial = xQueueCreate(10, sizeof(TelemetryPayload)); // air status box
-  qCmdToSerial = xQueueCreate(10, sizeof(CommandPayload)); // air cmd box
-  qMsgToSerial = xQueueCreate(10, 64); // air msg box
+  // physically spawning all the mailboxes into memory
+  qTelemToNow  = xQueueCreate(10, sizeof(TelemetryPayload)); // box that holds 10 statuses
+  qCmdToNow    = xQueueCreate(10, sizeof(CommandPayload)); // box that holds 10 commands
+  qMsgToNow    = xQueueCreate(10, 64); // box for strings
+  qTelemToSerial = xQueueCreate(10, sizeof(TelemetryPayload)); // catching status from the air
+  qCmdToSerial = xQueueCreate(10, sizeof(CommandPayload)); // catching commands from the air
+  qMsgToSerial = xQueueCreate(10, 64); // catching text from the air
 
-  // spawn the workers into their own threads
-  xTaskCreate(serialRxTask,      "SerRx",   4096, nullptr, 2, nullptr); // watching usb
-  xTaskCreate(radioTxTelemTask,  "RadTelem",4096, nullptr, 2, nullptr); // radio ship status
-  xTaskCreate(radioTxCmdTask,    "RadCmd",  4096, nullptr, 2, nullptr); // radio ship commands
-  xTaskCreate(radioTxMsgTask,    "RadMsg",  4096, nullptr, 2, nullptr); // radio ship text
-  xTaskCreate(serialTxTask,      "SerTx",   4096, nullptr, 1, nullptr); // shipping everything to jetson
+  // finally hiring the workers and throwing them into their own background threads
+  xTaskCreate(serialRxTask,      "SerRx",   4096, nullptr, 2, nullptr); // the guy watching the usb
+  xTaskCreate(radioTxTelemTask,  "RadTelem",4096, nullptr, 2, nullptr); // the guy shipping status over radio
+  xTaskCreate(radioTxCmdTask,    "RadCmd",  4096, nullptr, 2, nullptr); // the guy shipping commands
+  xTaskCreate(radioTxMsgTask,    "RadMsg",  4096, nullptr, 2, nullptr); // the guy shipping raw text
+  xTaskCreate(serialTxTask,      "SerTx",   4096, nullptr, 1, nullptr); // the guy shoving everything back to the brain
 
-  Serial.println("===================================="); // pretty header
-  Serial.print("UAV Bridge Ready! MAC: "); // identification
-  Serial.println(WiFi.macAddress()); // print mac for debugging
-  Serial.println("===================================="); // footer
-}
+  Serial.println("===================================="); // just a pretty header i added
+  Serial.print("UAV Bridge Ready! MAC: "); // yelling that we are ready to go
+  Serial.println(WiFi.macAddress()); // printing my own mac address so i can debug easier
+  Serial.println("===================================="); // nice little footer
+} // end of setup
 
-// main loop is empty because the workers handle everything
-void loop() {
-  vTaskDelay(portMAX_DELAY); // sleep forever and let workers do chores
-}
+// main loop is literally completely empty cause the background workers handle all the chores
+void loop() { // useless main loop
+  vTaskDelay(portMAX_DELAY); // i just tell the main chip to sleep forever and let the workers sweat
+} // end of file
