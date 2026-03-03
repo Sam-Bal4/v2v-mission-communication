@@ -15,7 +15,7 @@ TELEM_SEND_HZ = 5    # Broadcast frequency
 
 # ------------------- UGV Setup (DroneKit) -------------------
 print("==========================================")
-print("   UGV GROUND STATION2 - ROBUST ARMING")
+print("   UGV GROUND STATION - FORCED ARMING")
 print("==========================================")
 print(f"[Ground] Connecting to UGV at {UGV_CONTROL_PORT}...")
 
@@ -41,11 +41,12 @@ def broadcast_status(bridge, seq):
 
 def arm_and_move(bridge):
     """Robust Arm -> Disarm -> Arm sequence and then move."""
-    print("\n[Ground] >>> INITIATING ROBUST ARM SEQUENCE")
+    print("\n[Ground] >>> INITIATING ULTRA-AGGRESSIVE ARM SEQUENCE")
     
     # 1. Wait for safety
+    print(f"[Ground] Checking Safety... Armable: {vehicle.is_armable}")
     while not vehicle.is_armable:
-        print("  [WAIT] Waiting for vehicle safety checks (GPS/IMU)...")
+        print(f"  [WAIT] Vehicle NOT ARMABLE (GPS: {vehicle.gps_0.fix_type}, Mode: {vehicle.mode.name})")
         broadcast_status(bridge, 0)
         time.sleep(1)
     
@@ -143,18 +144,23 @@ def main():
             if air_telem:
                 seq_a, t_ms_a, vx_a, vy_a, armed_a, mode_a = air_telem
                 a_status = "ARMED" if armed_a == 1 else "DISARMED"
-                print(f"    [RADIO] UAV STATUS: {a_status}")
+                # print(f"    [RADIO] UAV STATUS: {a_status}") # Suppress for clean console
 
-            # 3. BROADCAST STATUS to UAV (Crucial for sync)
+            # 3. BROADCAST STATUS to UAV
+            if seq % 10 == 0:
+                print(f"[Ground] Heartbeat... Mode: {vehicle.mode.name} | Armed: {vehicle.armed}")
             broadcast_status(bridge, seq)
             seq += 1
 
-            # 3. Listen for mission command
+            # 4. Listen for mission command
             cmd = bridge.get_command()
             if cmd:
                 cmdSeq, cmdVal, eStopFlag = cmd
+                print(f"!!! [RADIO] Received CMD type {cmdVal} seq {cmdSeq} !!!")
+                
                 if cmdVal == v2v_bridge.CMD_MOVE_FORWARD:
-                    print("!!! [AIR COMMAND] MOVE REQUEST RECEIVED !!!")
+                    if vehicle.armed:
+                        print("    - Already Armed. Skipping sequence, moving now.")
                     arm_and_move(bridge)
                 elif eStopFlag == 1:
                     print("!!! [ABORT] EMERGENCY DISARM !!!")
