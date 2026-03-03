@@ -9,13 +9,13 @@ UGV_CONTROL_PORT = "/dev/ttyACM0"
 ESP32_BRIDGE_PORT = "/dev/ttyUSB0"  
 
 # ------------------- Mission params -------------------
-DIST_M = 3.048       # Default (10 ft)
-SPEED_MPS = 1.0      
+DIST_M = 3.048       
+SPEED_MPS = 1.5      # High torque
 TELEM_SEND_HZ = 5    
 
 # ------------------- UGV Setup -------------------
 print("==========================================")
-print("   UGV GROUND STATION - ZIG-ZAG READY")
+print("   UGV GROUND STATION - MISSION READY")
 print("==========================================")
 print(f"[Ground] Connecting to UGV at {UGV_CONTROL_PORT}...")
 
@@ -40,7 +40,6 @@ def broadcast_status(bridge, seq):
     safety_byte = (mode_idx & 0x0F) | armable_bit | gps_bit
     
     t_ms = int(time.time() * 1000) & 0xFFFFFFFF
-    # Speed Fix: Use groundspeed
     v_mps = vehicle.groundspeed if vehicle.groundspeed is not None else 0.0
     bridge.send_telemetry(seq, t_ms, v_mps, 0.0, armed_val, safety_byte)
 
@@ -49,27 +48,21 @@ def arm_and_move(bridge):
     print("\n[Ground] >>> INITIATING HYBRID ARM SEQUENCE")
     if not vehicle.is_armable:
         print(f"!!! [WARNING] PRE-ARM CHECKS FAILED (GPS: {vehicle.gps_0.fix_type}) !!!")
-        print("    [NOTICE] Bypassing safety check for manual test...")
     
     for attempt in ["FIRST ARM", "RESET DISARM", "FINAL ARM"]:
         state = True if "ARM" in attempt else False
         print(f"  [FORCE-SYNC] Initiating {attempt} in {vehicle.mode.name} mode...")
         for retry in range(3):
-            print(f"    - Attempt {retry+1}/3: Setting vehicle.armed to {state}")
             vehicle.armed = state
             timeout = time.time() + 3
             while vehicle.armed != state:
                 if time.time() > timeout: break
                 broadcast_status(bridge, 0)
                 time.sleep(0.1)
-            if vehicle.armed == state:
-                print(f"    - Success: Vehicle is now {'Armed' if state else 'Disarmed'}")
-                break
+            if vehicle.armed == state: break
         time.sleep(1.0) 
 
-    if not vehicle.armed:
-        print("!!! [CRITICAL] UGV failed to ARM. !!!")
-        return
+    if not vehicle.armed: return
 
     print(f"  [MODE] Switching {vehicle.mode.name} -> GUIDED...")
     vehicle.mode = VehicleMode("GUIDED")
@@ -78,13 +71,10 @@ def arm_and_move(bridge):
         broadcast_status(bridge, 0)
         time.sleep(0.1)
     
-    print("************************************")
-    print("!!! UGV FULLY ARMED AND SYNCED !!!")
-    print("************************************")
-    print("[Ground] Ready for Mission Segments.\n")
+    print("!!! UGV FULLY ARMED AND SYNCED !!!\n")
 
 def execute_drive(bridge, distance_m):
-    """Executes a straight drive for a specific distance."""
+    """Executes a straight drive."""
     print(f"[Ground] DRIVE: {distance_m}m at {SPEED_MPS}m/s")
     msg = vehicle.message_factory.set_position_target_local_ned_encode(
         0, 0, 0, mavutil.mavlink.MAV_FRAME_BODY_NED, 0b0000111111000111,
@@ -97,7 +87,7 @@ def execute_drive(bridge, distance_m):
         broadcast_status(bridge, 0)
         time.sleep(0.1)
     
-    # Stop
+    # stop msg
     stop_msg = vehicle.message_factory.set_position_target_local_ned_encode(
         0, 0, 0, mavutil.mavlink.MAV_FRAME_BODY_NED, 0b0000111111000111,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
@@ -105,12 +95,10 @@ def execute_drive(bridge, distance_m):
     time.sleep(0.5)
 
 def execute_turn(bridge, degrees):
-    """Executes a pivot turn using yaw rate (Robust for Skid-Steer)."""
+    """Executes a pivot turn (Skid-Steer)."""
     print(f"[Ground] TURN: {degrees} degrees")
-    yaw_rate = 45 if degrees > 0 else -45  # Increased rate for skid-steer torque
-    duration = abs(degrees) / 45.0
-    
-    # 0x05C7 (0b010111000111) -> Ignore Pos, Acc, Yaw. Active: Velocity and Yaw Rate.
+    yaw_rate = 60 if degrees > 0 else -60
+    duration = abs(degrees) / 60.0
     msg = vehicle.message_factory.set_position_target_local_ned_encode(
         0, 0, 0, mavutil.mavlink.MAV_FRAME_BODY_NED, 0x05C7,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
@@ -122,7 +110,28 @@ def execute_turn(bridge, degrees):
         broadcast_status(bridge, 0)
         time.sleep(0.1)
         
-    # Stop rotation
+    stop_msg = vehicle.message_factory.set_position_target_local_ned_encode(
+        0, 0, 0, mavutil.mavlink.MAV_FRAME_BODY_NED, 0x05C7,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+    vehicle.send_mavlink(stop_msg)
+    time.sleep(0.5)
+
+def execute_circle(bridge, speed, yaw_rate_deg, circles=1):
+    """Executes a smooth circle maneuver."""
+    print(f"[Ground] CIRCLE: Speed {speed}m/s | Yaw Rate {yaw_rate_deg}deg/s | count {circles}")
+    duration = (360.0 / abs(yaw_rate_deg)) * circles
+    
+    msg = vehicle.message_factory.set_position_target_local_ned_encode(
+        0, 0, 0, mavutil.mavlink.MAV_FRAME_BODY_NED, 0x05C7,
+        0, 0, 0, speed, 0, 0, 0, 0, 0, 0, 
+        math.radians(yaw_rate_deg))
+    
+    start_t = time.time()
+    while (time.time() - start_t) < duration:
+        vehicle.send_mavlink(msg)
+        broadcast_status(bridge, 0)
+        time.sleep(0.1)
+        
     stop_msg = vehicle.message_factory.set_position_target_local_ned_encode(
         0, 0, 0, mavutil.mavlink.MAV_FRAME_BODY_NED, 0x05C7,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
@@ -130,54 +139,46 @@ def execute_turn(bridge, degrees):
     time.sleep(0.5)
 
 def main():
-    print(f"[Ground] Starting Bridge on {ESP32_BRIDGE_PORT}...")
     bridge = v2v_bridge.V2VBridge(ESP32_BRIDGE_PORT, name="Ground-Station")
     try:
         bridge.connect()
         bridge.send_message("hi flying rat . we connected")
-    except Exception as e:
-        print(f"!!! Bridge Error: {e} !!!")
-        return
+    except Exception as e: return
 
-    print("[Ground] READY: WAITING FOR AIR COMMAND...")
     seq = 0
     try:
         while True:
             msg = bridge.get_message()
             if msg: print(f"\n>>> [AIR MESSAGE]: {msg}\n")
-            
-            # Broadcast Status (Heartbeat)
-            if seq % 10 == 0:
-                print(f"[Ground] Heartbeat... Mode: {vehicle.mode.name} | Armed: {vehicle.armed} | Fix: {vehicle.gps_0.fix_type}")
             broadcast_status(bridge, seq)
             seq += 1
 
-            # Command Handling
             cmd = bridge.get_command()
             if cmd:
                 cmdSeq, cmdVal, eStopFlag = cmd
-                print(f"!!! [RADIO] Received CMD {cmdVal} seq {cmdSeq} !!!")
+                print(f"!!! [RADIO] Received CMD {cmdVal} !!!")
                 
                 if cmdVal == v2v_bridge.CMD_MOVE_FORWARD:
                     if not vehicle.armed: arm_and_move(bridge)
                     execute_drive(bridge, DIST_M)
                 elif cmdVal == v2v_bridge.CMD_MOVE_2FT:
                     if not vehicle.armed: arm_and_move(bridge)
-                    execute_drive(bridge, 0.61) # 2ft
+                    execute_drive(bridge, 0.61)
                 elif cmdVal == v2v_bridge.CMD_TURN_RIGHT:
                     if not vehicle.armed: arm_and_move(bridge)
                     execute_turn(bridge, 90)
                 elif cmdVal == v2v_bridge.CMD_TURN_LEFT:
                     if not vehicle.armed: arm_and_move(bridge)
                     execute_turn(bridge, -90)
+                elif cmdVal == v2v_bridge.CMD_CIRCLE:
+                    if not vehicle.armed: arm_and_move(bridge)
+                    execute_circle(bridge, 1.0, 45, circles=2)
                 elif eStopFlag == 1:
-                    print("!!! [ABORT] EMERGENCY DISARM !!!")
                     vehicle.armed = False
             
             time.sleep(1.0 / TELEM_SEND_HZ)
             
-    except KeyboardInterrupt:
-        print("[Ground] Shutdown.")
+    except KeyboardInterrupt: pass
     finally:
         bridge.stop()
         vehicle.close()

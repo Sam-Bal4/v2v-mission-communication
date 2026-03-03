@@ -18,6 +18,7 @@ CMD_MOVE_FORWARD = 5
 CMD_MOVE_2FT     = 6
 CMD_TURN_RIGHT   = 7
 CMD_TURN_LEFT    = 8
+CMD_CIRCLE       = 9
 
 # -------------------- VEHICLE MODES (for Status) --------------------
 # used in 'estop' field of telemetry to represent current mode
