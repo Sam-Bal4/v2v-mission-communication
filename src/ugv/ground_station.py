@@ -3,8 +3,8 @@ import time
 import v2v_bridge
 
 # ------------------- SET THESE PORTS -------------------
-UGV_CONTROL_PORT = "/dev/ttyACM1"  # UGV Flight Controller (Cube/Pixhawk)
-ESP32_BRIDGE_PORT = "/dev/ttyACM0" # UGV ESP32 Bridge
+UGV_CONTROL_PORT = "/dev/ttyACM0"  # UGV Flight Controller (Cube/Pixhawk)
+ESP32_BRIDGE_PORT = "/dev/ttyUSB0" # UGV ESP32 Bridge
 
 # ------------------- Mission params -------------------
 DIST_M = 3.048       # 10 ft
