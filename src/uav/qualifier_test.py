@@ -57,8 +57,9 @@ def main(): # the main safety check engine
     
     # wait for altitude
     while True: # loops until high
-        msg = master.recv_match(type='VFR_HUD', blocking=True, timeout=1.0) # get height
-        if msg and msg.alt >= (TARGET_ALT * 0.9): break # if high enough stop
+        # asking for the lidar range finder distance from the floor
+        msg = master.recv_match(type='DISTANCE_SENSOR', blocking=True, timeout=1.0)
+        if msg and (msg.current_distance / 100.0) >= (TARGET_ALT * 0.9): break # if high enough stop
     
     log_event(f"UAV Takeoff Successful. Current Velocity: {get_uav_velocity(master)} m/s") # log stats
     

@@ -52,9 +52,10 @@ def takeoff(alt): # this tells the drone to actually lift off the floor
                                  mavutil.mavlink.MAV_CMD_NAV_TAKEOFF, 0, 0, 0, 0, 0, 0, 0, alt) # the takeoff pulse with the altitude i passed in
 
 def get_altitude(): # i did this to check the current height from the floor
-    msg = master.recv_match(type='VFR_HUD', blocking=True, timeout=1.0) # grabbing the altitude packet from the stream
+    # grabbing the raw lidar rangefinder distance (LidarLiteV3 sends cm)
+    msg = master.recv_match(type='DISTANCE_SENSOR', blocking=True, timeout=1.0)
     if msg: # if we actually caught a real message
-        return msg.alt # return the height in meters
+        return msg.current_distance / 100.0 # convert cm to meters for the logic
     return 0.0 # just return zero if it completely fails
 
 def send_velocity(vx, vy, vz=0.0): # i use this to move the drone by setting the speed

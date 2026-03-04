@@ -80,8 +80,9 @@ def main(): # the main mission 3 boss function
     launch_t = time.time() # start clock
     # wait for altitude
     while True: # loops until high
-        msg = master.recv_match(type='VFR_HUD', blocking=True, timeout=1.0) # get height
-        if msg and msg.alt >= (TARGET_ALT * 0.9): break # if high enough stop
+        # grabbing the raw lidar packet (cm) instead of sea level junk
+        msg = master.recv_match(type='DISTANCE_SENSOR', blocking=True, timeout=1.0)
+        if msg and (msg.current_distance / 100.0) >= (TARGET_ALT * 0.9): break # if high enough stop
     
     log_event(f"Minimum Altitude {TARGET_ALT}m Reached.") # height confirmed
     if (time.time() - launch_t) < 5.0: time.sleep(5.0) # ensure 5s flight time

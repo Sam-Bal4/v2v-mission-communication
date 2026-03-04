@@ -89,8 +89,9 @@ def main(): # the main boss engine that runs the mission
     
     launch_t = time.time() # i start the clock right here
     while True: # loop to just watch it climb until it hits the target height
-        msg = master.recv_match(type='VFR_HUD', blocking=True, timeout=1.0) # asking the flight controller for the altitude
-        if msg and msg.alt >= (TARGET_ALT * 0.9): break # if it is high enough i just break the loop
+        # asking the flight controller for the raw LIDAR distance from the floor
+        msg = master.recv_match(type='DISTANCE_SENSOR', blocking=True, timeout=1.0)
+        if msg and (msg.current_distance / 100.0) >= (TARGET_ALT * 0.9): break # check height in meters
         time.sleep(0.5) # checking again in half a second
     
     hold_duration = time.time() - launch_t # doing math to calculate the total climb time
