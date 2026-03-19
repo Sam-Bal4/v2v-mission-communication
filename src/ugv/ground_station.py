@@ -18,13 +18,6 @@ DIST_M = 3.048       # 10ft default distance
 SPEED_MPS = 1.5      # m/s target speed
 TELEM_SEND_HZ = 5    # status update rate
 
-# open loop PWM overrides
-PWM_NEUTRAL = 1500
-PWM_FORWARD = 1650
-PWM_REVERSE = 1350
-PWM_STEER_RIGHT = 1650
-PWM_STEER_LEFT = 1350
-
 # start the connection to the wheel ugv
 print("==========================================") # header
 print("   UGV GROUND STATION - MISSION READY") # title
@@ -66,7 +59,7 @@ def broadcast_status(bridge, seq): # yells status back to drone
     mode_idx = v2v_bridge.MODE_INITIAL # default
     
     # mapping mode names to numbers
-    if m == "GUIDED" or m == "MANUAL": mode_idx = v2v_bridge.MODE_GUIDED # mapping manual to guided to keep drone happy
+    if m == "GUIDED": mode_idx = v2v_bridge.MODE_GUIDED # guided bits
     elif m == "AUTO": mode_idx = v2v_bridge.MODE_AUTO # auto bits
     elif m == "LAND": mode_idx = v2v_bridge.MODE_LAND # land bits
     
@@ -104,90 +97,113 @@ def arm_and_sync(bridge): # forces motor engagement
 
     if not vehicle.armed: return # stop if failed
 
-    # switch to MANUAL mode so it takes RC overrides
-    print(f"  [MODE] Switching {vehicle.mode.name} -> MANUAL...") # log mode shift
-    vehicle.mode = VehicleMode("MANUAL") # tell pixhawk
+    # switch to GUIDED mode so it takes radio commands
+    print(f"  [MODE] Switching {vehicle.mode.name} -> GUIDED...") # log mode shift
+    vehicle.mode = VehicleMode("GUIDED") # tell pixhawk
     m_timeout = time.time() + 5 # set timeout
-    while vehicle.mode.name != "MANUAL" and time.time() < m_timeout: # wait for shift
+    while vehicle.mode.name != "GUIDED" and time.time() < m_timeout: # wait for shift
         broadcast_status(bridge, 0) # keep drone updated
         time.sleep(0.1) # wait
-    
-    # reset channels to neutral before we start
-    vehicle.channels.overrides = {'1': PWM_NEUTRAL, '3': PWM_NEUTRAL}
     
     print("!!! UGV FULLY ARMED AND SYNCED !!!\n") # success
 
 #######execution Engine (The "Slave")
 
 def execute_drive(bridge, distance_m): # moves ugv for a set distance
-    # sends RC overrides to drive forward (open loop timing based)
-    duration = distance_m / SPEED_MPS # calc time
-    print(f"[Ground] DRIVE: {distance_m}m approx (override {duration:.1f}s)") # log drive
+    # sends a pulsed MAVLink message to drive forward
+    print(f"[Ground] DRIVE: {distance_m}m at {SPEED_MPS}m/s") # log drive
+    msg = vehicle.message_factory.set_position_target_local_ned_encode( # build pulse
+        0, 0, 0, mavutil.mavlink.MAV_FRAME_BODY_NED, 0b0000111111000111, # local mode
+        0, 0, 0, SPEED_MPS, 0, 0, 0, 0, 0, 0, 0) # speed vectors
     
     start_t = time.time() # start clock
+    duration = distance_m / SPEED_MPS # calc time
     while (time.time() - start_t) < duration: # loop for duration
-        vehicle.channels.overrides = {'1': PWM_NEUTRAL, '3': PWM_FORWARD}
+        vehicle.send_mavlink(msg) # blast mavlink pulse
         broadcast_status(bridge, 0) # keep drone happy
         time.sleep(0.1) # 10hz
     
     # full stop
-    vehicle.channels.overrides = {'1': PWM_NEUTRAL, '3': PWM_NEUTRAL}
+    stop_msg = vehicle.message_factory.set_position_target_local_ned_encode( # build stop
+        0, 0, 0, mavutil.mavlink.MAV_FRAME_BODY_NED, 0b0000111111000111, # local mode
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0) # zero speed
+    vehicle.send_mavlink(stop_msg) # blast stop
     time.sleep(0.5) # let settle
 
 def execute_turn(bridge, angle_deg): # spins in place
-    # spins the ugv in place to a specific relative angle (open loop timing)
-    print(f"[Ground] >>> EXECUTING TURN {angle_deg} DEGREES approx") # log turn
-    yaw_rate = 60.0 # deg/s speed of pivot
-    duration = abs(angle_deg) / yaw_rate # calc time
-    direction = PWM_STEER_RIGHT if angle_deg > 0 else PWM_STEER_LEFT
+    # spins the ugv in place to a specific relative angle
+    print(f"[Ground] >>> EXECUTING TURN {angle_deg} DEGREES") # log turn
+    target_yaw = angle_deg # target
+    yaw_rate = 60 # deg/s speed of pivot
+    direction = 1 if angle_deg > 0 else -1 # 1 = right, -1 = left
     
+    msg = vehicle.message_factory.set_position_target_local_ned_encode( # build pivot pulse
+        0, 0, 0, mavutil.mavlink.MAV_FRAME_BODY_NED, 0b0000101111111111, # yaw rate mode
+        0, 0, 0, 0, 0, 0, 0, 0, 0, math.radians(yaw_rate * direction), 0) # yaw speed
+    
+    duration = abs(angle_deg) / yaw_rate # calc time
     start_t = time.time() # start clock
     while (time.time() - start_t) < duration: # loop
-        vehicle.channels.overrides = {'1': direction, '3': PWM_NEUTRAL}
+        vehicle.send_mavlink(msg) # blast mavlink
         broadcast_status(bridge, 0) # update drone
         time.sleep(0.1) # 10hz
     
     # send a stop message at the end
-    vehicle.channels.overrides = {'1': PWM_NEUTRAL, '3': PWM_NEUTRAL}
+    stop_msg = vehicle.message_factory.set_position_target_local_ned_encode( # build stop
+        0, 0, 0, mavutil.mavlink.MAV_FRAME_BODY_NED, 0b0000111111111111, # zero everything
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0) # zeros
+    vehicle.send_mavlink(stop_msg) # blast stop
     time.sleep(1.0) # let it settle
 
 def execute_drive_forever(bridge, speed_mps): # constant drive
     # drives straight at a constant speed until CMD_STOP is received
-    print(f"[Ground] >>> MISSION 1: DRIVING STRAIGHT (RC OVERRIDE)") # log mission
+    print(f"[Ground] >>> MISSION 1: DRIVING STRAIGHT AT {speed_mps} m/s") # log mission
+    msg = vehicle.message_factory.set_position_target_local_ned_encode( # build msg
+        0, 0, 0, mavutil.mavlink.MAV_FRAME_BODY_NED, 0b0000111111000111, # local mode
+        0, 0, 0, speed_mps, 0, 0, 0, 0, 0, 0, 0) # speed
     
-    # return True to keep looping in main script
-    return True # return to main loop
+    # this will keep looping in the main script now
+    return msg # return msg to main loop
 
 def execute_circle(bridge, speed, yaw_rate_deg, circles=1): # arc move
     # blends forward juice and turning juice to make an arc
-    print(f"[Ground] CIRCLE: Yaw Rate {yaw_rate_deg}deg/s | count {circles} (override)") # log circle
+    print(f"[Ground] CIRCLE: Speed {speed}m/s | Yaw Rate {yaw_rate_deg}deg/s | count {circles}") # log circle
     duration = (360.0 / abs(yaw_rate_deg)) * circles # calc time
+    
+    msg = vehicle.message_factory.set_position_target_local_ned_encode( # build circle msg
+        0, 0, 0, mavutil.mavlink.MAV_FRAME_BODY_NED, 0x05C7, # velocity mask
+        0, 0, 0, speed, 0, 0, 0, 0, 0, 0, # forward speed
+        math.radians(yaw_rate_deg)) # yaw rate
     
     start_t = time.time() # start clock
     while (time.time() - start_t) < duration: # loop
-        vehicle.channels.overrides = {'1': PWM_STEER_RIGHT, '3': PWM_FORWARD} 
+        vehicle.send_mavlink(msg) # blast mavlink
         broadcast_status(bridge, 0) # update drone
         time.sleep(0.1) # 10hz
         
     # hard stop
-    vehicle.channels.overrides = {'1': PWM_NEUTRAL, '3': PWM_NEUTRAL}
+    stop_msg = vehicle.message_factory.set_position_target_local_ned_encode( # build stop
+        0, 0, 0, mavutil.mavlink.MAV_FRAME_BODY_NED, 0x05C7, # zeros
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0) # zeros
+    vehicle.send_mavlink(stop_msg) # blast stop
     time.sleep(0.5) # let settle
 
 ####
 
 def execute_gps_denied_goto(bridge, x, y, avoidance_mode=False): # navigate to relative coords
-    # tells the ugv to move to a relative position (NED - approximated via timing)
-    print(f"[Ground] >>> GOTO RELATIVE Tming: X={x}m, Y={y}m (Avoidance: {avoidance_mode})") # log goto
+    # tells the ugv to move to a relative position (NED)
+    # x = forward/back, y = right/left
+    print(f"[Ground] >>> GOTO RELATIVE: X={x}m, Y={y}m (Avoidance: {avoidance_mode})") # log goto
     
     if not avoidance_mode: # if direct path
-        # highly approximated: turn to heading then drive
-        if y != 0:
-            angle = math.degrees(math.atan2(y, x))
-            execute_turn(bridge, angle)
-        dist = math.sqrt(x*x + y*y)
-        execute_drive(bridge, dist)
+        # standard direct path
+        msg = vehicle.message_factory.set_position_target_local_ned_encode( # build target msg
+            0, 0, 0, mavutil.mavlink.MAV_FRAME_LOCAL_NED, 0b0000111111111000, # position mask
+            x, y, 0, 0, 0, 0, 0, 0, 0, 0, 0) # target coords
+        vehicle.send_mavlink(msg) # blast mavlink
     else: # if dodging buckets
         # simplistic avoidance loop (the 5ft rule)
+        # we would use OAK-D-Lite depth here to steer away
         detector = ObstacleDetector() # setup cam
         found, angle, dist = detector.check_for_buckets() # search field
         
@@ -199,11 +215,10 @@ def execute_gps_denied_goto(bridge, x, y, avoidance_mode=False): # navigate to r
             log_avoidance("Avoidance Maneuver Complete. Returning to Target Path.") # log success
         
         # continue to final coords
-        if y != 0:
-            angle = math.degrees(math.atan2(y, x))
-            execute_turn(bridge, angle)
-        dist = math.sqrt(x*x + y*y)
-        execute_drive(bridge, dist)
+        msg = vehicle.message_factory.set_position_target_local_ned_encode( # build target coords
+            0, 0, 0, mavutil.mavlink.MAV_FRAME_LOCAL_NED, 0b0000111111111000, # position mask
+            x, y, 0, 0, 0, 0, 0, 0, 0, 0, 0) # target
+        vehicle.send_mavlink(msg) # blast mavlink
 
 def main(): # the main executor loop
     # start the bridge link to the drone
@@ -274,10 +289,13 @@ def main(): # the main executor loop
                     drive_msg = None # kill move
                     if vehicle.armed: # if live
                         log_avoidance("Destination Arrival / Manual Stop.") # log arrival
-                    vehicle.channels.overrides = {'1': PWM_NEUTRAL, '3': PWM_NEUTRAL} # blast stop
+                    stop_msg = vehicle.message_factory.set_position_target_local_ned_encode( # build stop msg
+                        0, 0, 0, mavutil.mavlink.MAV_FRAME_BODY_NED, 0b0000111111111111, # zeros
+                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0) # zeros
+                    vehicle.send_mavlink(stop_msg) # blast stop
 
             if mission_active and drive_msg: # if mission is driving
-                vehicle.channels.overrides = {'1': PWM_NEUTRAL, '3': PWM_FORWARD} # keep driving 
+                vehicle.send_mavlink(drive_msg) # keep blasting forward pulse
 
             time.sleep(1.0 / TELEM_SEND_HZ) # wait for next cycle
 
