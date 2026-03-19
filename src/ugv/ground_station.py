@@ -4,6 +4,7 @@ import math # for doing circles and turns
 import v2v_bridge # our custom translator for the radio boxes
 from pymavlink import mavutil # raw mavlink pulses for the speed commands
 
+##mickymouse
 # UGV GROUND STATION SCRIPT
 # This runs on the Raspberry Pi and bullies the Pixhawk into moving
 # based on what the Jetson/Drone says over the radio
