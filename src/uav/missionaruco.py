@@ -75,6 +75,9 @@ LAND_DEADBAND    = 0.075        # 7.5 cm -- tighter gate used just before landin
 # --- Loop rate ---
 FOLLOW_HZ = 10                  # Hz for the centering loop
 
+# --- UGV Radio ---
+UGV_COOLDOWN = 6.0              # seconds between UGV commands to prevent spam
+
 # --- Display ---
 WINDOW_NAME = "UAV Mission ArUco - Vision Guided"
 
@@ -586,6 +589,7 @@ def main():
         confirm_count        = 0
         center_timer         = None
         last_correction_time = 0.0
+        last_ugv_cmd_time    = 0.0
 
         while True:
             loop_start = time.time()
@@ -637,19 +641,23 @@ def main():
                         log(f"[Centre] x:{pos.x:.3f}m y:{pos.y:.3f}m  "
                             f"roll:{roll_pwm} pitch:{pitch_pwm}  "
                             f"held:{time_held:.1f}s left:{time_left:.1f}s")
-                        
-                        # --- FUN COMMAND TO UGV ---
+                        last_correction_time = now
+
+                    # --- FUN COMMAND TO UGV ---
+                    # Use a separate 6.0s cooldown so we don't spam the UGV while it's turning
+                    if not in_zone and (now - last_ugv_cmd_time) >= UGV_COOLDOWN:
                         if pos.x < -METER_DEADBAND:
                             log(">>> Radioing UGV: TURN LEFT!")
                             bridge.send_command(cmdSeq=cmd_seq, cmd=v2v_bridge.CMD_TURN_LEFT, estop=0)
                             cmd_seq += 1
+                            last_ugv_cmd_time = now
                         elif pos.x > METER_DEADBAND:
                             log(">>> Radioing UGV: TURN RIGHT!")
                             bridge.send_command(cmdSeq=cmd_seq, cmd=v2v_bridge.CMD_TURN_RIGHT, estop=0)
                             cmd_seq += 1
-                        
-                        last_correction_time = now
-                    else:
+                            last_ugv_cmd_time = now
+
+                    if in_zone:
                         set_rc_override(master, throttle=thr)
 
                     status = (f"CENTRING ID:{target_id}  "
