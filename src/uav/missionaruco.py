@@ -63,7 +63,7 @@ CONFIRM_NEEDED = 3              # consecutive detections before locking onto a m
 KP_ROLL        = 300            # gain:  0.3 m * 300 = 90 PWM nudge
 KP_PITCH       = 300
 MAX_NUDGE      = 150            # hard cap on PWM offset from RC_CENTER
-METER_DEADBAND = 0.05           # 5 cm -- ignore errors smaller than this
+METER_DEADBAND = 0.15           # 15 cm -- used as a rough fallback
 
 # --- Cooldown between correction commands ---
 CORRECTION_COOLDOWN = 0.8       # seconds
@@ -440,16 +440,10 @@ def throttle_hold(alt: float) -> int:
 def compute_correction(pos: MarkerPosition) -> Tuple[int, int]:
     """
     Convert tvec metres into roll/pitch PWM values.
-
-    pos.x  side offset   ->  roll   (right = +x = roll right = PWM > 1500)
-    pos.y  fwd  offset   ->  pitch  (fwd camera = +y, but ArduPilot CH2 < 1500
-                                     means pitch forward, so sign is negated)
     """
-    ex = 0.0 if abs(pos.x) < METER_DEADBAND else pos.x
-    ey = 0.0 if abs(pos.y) < METER_DEADBAND else pos.y
-
-    roll_pwm  = int(RC_CENTER + max(-MAX_NUDGE, min(MAX_NUDGE,  KP_ROLL  * ex)))
-    pitch_pwm = int(RC_CENTER + max(-MAX_NUDGE, min(MAX_NUDGE, -KP_PITCH * ey)))
+    # Now that we use the visual pixel box for holding deadband, we can just purely rely on pos.x and pos.y
+    roll_pwm  = int(RC_CENTER + max(-MAX_NUDGE, min(MAX_NUDGE,  KP_ROLL  * pos.x)))
+    pitch_pwm = int(RC_CENTER + max(-MAX_NUDGE, min(MAX_NUDGE, -KP_PITCH * pos.y)))
     return roll_pwm, pitch_pwm
 
 
@@ -535,6 +529,10 @@ def main():
         log("\n--- PHASE 1: TAKEOFF ---")
         change_mode(master, "STABILIZE")
         arm_drone(master)
+
+        log("\n[Bridge] FORCE ARMING Ground Vehicle AND moving it immediately (Mission 1)!")
+        bridge.send_command(cmdSeq=cmd_seq, cmd=v2v_bridge.CMD_MISSION_1, estop=0)
+        cmd_seq += 1
 
         while True:
             alt = get_lidar_alt(master, blocking=True)
@@ -629,7 +627,13 @@ def main():
                             if p.marker_id == target_id), None)
 
                 if pos:
-                    in_zone   = is_centered(pos, METER_DEADBAND)
+                    target_idx = next((i for i, mid in enumerate(ids.flatten()) if mid == target_id), None)
+                    in_zone = False
+                    if target_idx is not None:
+                        mc = np.mean(corners[target_idx][0], axis=0)
+                        # Pixel-based zone check overrides math deadbands so the green box behaves flawlessly
+                        in_zone = vision.center_zone.contains(mc[0] - (annotated.shape[1]/2.0), mc[1] - (annotated.shape[0]/2.0))
+
                     time_held = time.time() - center_timer
                     time_left = CENTER_HOLD_TIME - time_held
 
@@ -646,12 +650,12 @@ def main():
                     # --- FUN COMMAND TO UGV ---
                     # Use a separate 6.0s cooldown so we don't spam the UGV while it's turning
                     if not in_zone and (now - last_ugv_cmd_time) >= UGV_COOLDOWN:
-                        if pos.x < -METER_DEADBAND:
+                        if pos.x < -0.05:
                             log(">>> Radioing UGV: TURN LEFT!")
                             bridge.send_command(cmdSeq=cmd_seq, cmd=v2v_bridge.CMD_TURN_LEFT, estop=0)
                             cmd_seq += 1
                             last_ugv_cmd_time = now
-                        elif pos.x > METER_DEADBAND:
+                        elif pos.x > 0.05:
                             log(">>> Radioing UGV: TURN RIGHT!")
                             bridge.send_command(cmdSeq=cmd_seq, cmd=v2v_bridge.CMD_TURN_RIGHT, estop=0)
                             cmd_seq += 1
@@ -699,7 +703,13 @@ def main():
                 pos = next((p for p in positions
                             if p.marker_id == target_id), None)
                 if pos:
-                    centered = is_centered(pos, LAND_DEADBAND)
+                    target_idx = next((i for i, mid in enumerate(ids.flatten()) if mid == target_id), None)
+                    centered = False
+                    if target_idx is not None:
+                        mc = np.mean(corners[target_idx][0], axis=0)
+                        # Re-use pixel-based zone check to land beautifully
+                        centered = vision.center_zone.contains(mc[0] - (annotated.shape[1]/2.0), mc[1] - (annotated.shape[0]/2.0))
+
                     if centered:
                         set_rc_override(master, throttle=thr)
                         show(annotated,
