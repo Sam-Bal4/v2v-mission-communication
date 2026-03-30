@@ -1,0 +1,14 @@
+[17:34:27] --- ARUCO PRECISION MISSION (SIMULATION) ---
+[17:34:27] Phase 1: TAKEOFF
+[17:34:31] Altitude reached.
+[17:34:31] Phase 2: FORWARD FLIGHT (2.0s)
+[17:34:33] Forward flight complete.
+[17:34:33] Syncing with UGV...
+[17:34:33] UGV circling. Starting ArUco phase.
+[17:34:33] Phase 3: ACQUIRE + CENTRE (5.0s)
+[03:28:22] --- ARUCO PRECISION MISSION (SIMULATION) ---
+[03:28:22] Phase 1: TAKEOFF
+[03:28:26] Altitude reached.
+[03:28:26] Phase 2: FORWARD FLIGHT (2.0s)
+[03:28:28] Forward flight complete.
+[03:28:28] Syncing with UGV...
