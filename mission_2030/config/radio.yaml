@@ -1,0 +1,8 @@
+bridge:
+  port: "/dev/ttyUSB0"
+  baudrate: 115200
+
+protocol:
+  sof_byte: 170 # 0xAA
+  timeout_ms: 1000
+  heartbeat_hz: 5

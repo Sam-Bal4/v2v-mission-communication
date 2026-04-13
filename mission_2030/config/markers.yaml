@@ -1,0 +1,17 @@
+# Marker configurations
+dictionary: "DICT_4X4_50"
+
+destination_marker:
+  id: 10
+  size_m: 0.8
+  use_for_landing: false
+
+landing_marker:
+  id: 0
+  size_m: 0.6
+  use_for_landing: true
+
+tracking:
+  confidence_gate: 0.7
+  jitter_filter_alpha: 0.3
+  stale_timeout_s: 1.0

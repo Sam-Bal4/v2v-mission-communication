@@ -1,0 +1,9 @@
+motion:
+  default_speed_mps: 0.5
+  obstacle_clearance_m: 1.0
+
+capabilities:
+  has_deck_sensor: true
+  
+endpoints:
+  mavlink_proxy_port: 14550

@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "operation_touchdown"
+version = "0.1.0"
+description = "ArduPilot-based UAV/UGV collaborative autonomy system"
+requires-python = ">=3.10"
+dependencies = [
+    "opencv-python",
+    "numpy",
+    "pymavlink",
+    "pyyaml",
+    "pyserial",
+    "pydantic"
+]
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q"
+testpaths = [
+    "tests",
+]

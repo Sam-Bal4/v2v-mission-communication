@@ -1,0 +1,14 @@
+# High-level mission settings
+phases:
+  search:
+    pattern: "lawnmower"
+    altitude_m: 2.0
+    speed_mps: 1.0
+  landing:
+    approach_altitude_m: 1.5
+    descent_rate_mps: 0.3
+    
+failsafes:
+  action_on_comm_loss: "hold"
+  action_on_target_loss: "climb_and_hold"
+  target_loss_timeout_s: 3.0

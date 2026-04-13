@@ -1,0 +1,10 @@
+camera:
+  type: "ZED X"
+  orientation: "downward"
+  framerate: 30
+  resolution: "1080p"
+  
+calibration:
+  use_saved_intrinsics: true
+  intrinsics_file: "config/zedx_intrinsics.json"
+  extrinsics_file: "config/zedx_extrinsics.json"

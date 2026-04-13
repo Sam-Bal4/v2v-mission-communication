@@ -1,0 +1,16 @@
+# ArduCopter airframe assumptions
+airframe:
+  type: "Hexa X"
+  controller: "Cube Orange+"
+  companion_computer: "Jetson Nano"
+  
+altitude:
+  target_hover_m: 1.3
+  minimum_flight_m: 1.2
+  maximum_flight_m: 2.0
+  
+# Timing Constraints  
+timeouts:
+  mission_max_time_s: 600
+  ride_along_time_s: 10
+  min_flight_time_s: 5

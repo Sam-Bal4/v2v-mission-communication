@@ -1,0 +1,31 @@
+### Ardupilot MAVLink configurations for Cube Orange+
+connection:
+  port: "/dev/ttyACM0"
+  baudrate: 57600
+  timeout_s: 1.0
+
+# Setup Notes to match Competition Architecture
+required_params:
+  # Precision Landing
+  PLND_ENABLED: 1
+  PLND_TYPE: 1          # MAVLink LANDING_TARGET
+  PLND_OPTIONS: 1       # Assumed 1 = Moving Target support (check missionplanner)
+  PLND_STRICT: 1
+  
+  # Optical Flow & Rangefinding - User Specific Setup
+  FLOW_TYPE: 6          # DroneCAN for Holybro H-Flow
+  CAN_P1_DRIVER: 1
+  CAN_D1_PROTOCOL: 1
+  
+  RNGFND1_TYPE: 2       # LidarLite V3 I2C (Note: rules mentioned I2C might be unstable, but user explicitly has it plugged into I2C)
+  RNGFND1_ADDR: 0x62
+  
+  # GPS Setup (Geofence only)
+  GPS_TYPE: 1
+  EK3_SRC1_POSXY: 3     # Optical flow overrides GPS for Nav
+  EK3_SRC1_VELXY: 5     # Optical Flow
+  EK3_SRC1_POSZ: 2      # RangeFinder
+  
+  # Hardware / Frame specific
+  FRAME_CLASS: 3        # Hexa
+  FRAME_TYPE: 3         # X
