@@ -1,9 +1,16 @@
 import logging
-import time
 
 def setup_logger(name: str, log_file: str = "mission_log.txt", level=logging.INFO) -> logging.Logger:
-    """Sets up a structured logger for mission events."""
+    """Sets up a structured logger for mission events.
+    
+    Prevents duplicate handlers if called multiple times with the same name.
+    """
     logger = logging.getLogger(name)
+    
+    # If this logger already has handlers, don't add more (prevents log duplication)
+    if logger.handlers:
+        return logger
+    
     logger.setLevel(level)
 
     formatter = logging.Formatter(

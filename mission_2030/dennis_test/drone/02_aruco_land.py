@@ -54,11 +54,14 @@ def main():
                 break
         time.sleep(0.1)
 
+    cam.close()
+
     print("Landing...")
     master.mav.set_mode_send(master.target_system, mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED, mapping["LAND"])
 
     landed = False
-    while not landed:
+    land_start = time.time()
+    while not landed and time.time() - land_start < 90:
         msg = master.recv_match(type='HEARTBEAT', blocking=False)
         if msg and msg.get_srcSystem() == master.target_system:
             if not (msg.base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED):
@@ -66,8 +69,9 @@ def main():
                 landed = True
                 break
         time.sleep(0.1)
-
-    cam.close()
+    
+    if not landed:
+        print("Warning: landing timeout reached.")
 
 if __name__ == "__main__":
     main()

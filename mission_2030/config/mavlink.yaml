@@ -17,7 +17,7 @@ required_params:
   CAN_P1_DRIVER: 1
   CAN_D1_PROTOCOL: 1
   
-  RNGFND1_TYPE: 2       # LidarLite V3 I2C (Note: rules mentioned I2C might be unstable, but user explicitly has it plugged into I2C)
+  RNGFND1_TYPE: 3       # LidarLite V3 I2C (type 3 = LIDARLite-I2C)
   RNGFND1_ADDR: 0x62
   
   # GPS Setup (Geofence only)

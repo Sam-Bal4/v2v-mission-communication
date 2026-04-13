@@ -33,18 +33,21 @@ class MavlinkClient:
             mavutil.mavlink.MAV_CMD_NAV_TAKEOFF,
             0, 0, 0, 0, 0, 0, 0, altitude)
 
-    def send_landing_target(self, timestamp_ms: int, x_rad: float, y_rad: float, distance_m: float, x_m: float, y_m: float, z_m: float):
-        # MAVLink LANDING_TARGET precision landing stream
-        # MAV_FRAME_BODY_NED implies x forward, y right, z down
+    def send_landing_target(self, angle_x_rad: float, angle_y_rad: float, distance_m: float):
+        """
+        Stream MAVLink LANDING_TARGET for ArduPilot precision landing.
+        Uses angle mode (MAV_FRAME_BODY_NED) — position fields are zeroed.
+        """
         self.master.mav.landing_target_send(
-            timestamp_ms * 1000, # usec
-            0, # target num
+            int(time.time() * 1_000_000),   # time_usec
+            0,                               # target_num
             mavutil.mavlink.MAV_FRAME_BODY_NED,
-            x_rad, y_rad,
-            distance_m,
-            0, 0, # target size x y
-            x_m, y_m, z_m,
-            [1.0,0,0,0], # q (not used usually)
-            2, # POSITION_VALID flag
-            1 # valid
+            angle_x_rad,                     # angle_x
+            angle_y_rad,                     # angle_y
+            distance_m,                      # distance
+            0.0, 0.0,                        # size_x, size_y
+            0.0, 0.0, 0.0,                   # x, y, z (unused in angle mode)
+            [1.0, 0.0, 0.0, 0.0],           # q quaternion
+            1,                               # type: LANDING_TARGET_TYPE_LIGHT_BEACON
+            1                                # position_valid
         )
