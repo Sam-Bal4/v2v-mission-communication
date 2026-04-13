@@ -48,7 +48,7 @@ def main():
     if not arm_vehicle(master):
         return
 
-    print(f"Takeoff → {TARGET_ALT}m")
+    print(f"Takeoff -> {TARGET_ALT}m")
     master.mav.command_long_send(master.target_system, master.target_component, 
                                  mavutil.mavlink.MAV_CMD_NAV_TAKEOFF, 0, 0, 0, 0, 0, 0, 0, TARGET_ALT)
     

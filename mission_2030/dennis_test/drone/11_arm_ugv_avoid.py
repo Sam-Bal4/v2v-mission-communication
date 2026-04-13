@@ -29,8 +29,8 @@ signal.signal(signal.SIGTERM, _sigint)
 
 def main():
     print("=" * 50)
-    print("  TEST 11 – UGV ARM & AVOID (Radio Commander)")
-    print("  Ctrl+C → sends stop to UGV and exits cleanly")
+    print("  TEST 11 - UGV ARM & AVOID (Radio Commander)")
+    print("  Ctrl+C -> sends stop to UGV and exits cleanly")
     print("=" * 50)
 
     bridge = V2VBridge(ESP32_PORT)

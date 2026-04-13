@@ -45,18 +45,18 @@ def set_mode(master, mode: str):
         master.target_system,
         mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
         mapping[mode])
-    print(f"Mode → {mode}")
+    print(f"Mode -> {mode}")
     time.sleep(0.5)
 
 def main():
     print("=" * 50)
-    print("  TEST 01 – BASIC FLIGHT")
-    print("  Ctrl+C → LAND mode (graceful)")
+    print("  TEST 01 - BASIC FLIGHT")
+    print("  Ctrl+C -> LAND mode (graceful)")
     print("=" * 50)
 
     master = mavutil.mavlink_connection(DRONE_PORT, baud=BAUD_RATE)
     master.wait_heartbeat()
-    print(f"Heartbeat OK – sysid={master.target_system}")
+    print(f"Heartbeat OK - sysid={master.target_system}")
     request_streams(master)
 
     try:
@@ -64,7 +64,7 @@ def main():
         if not arm_vehicle(master):
             return
 
-        print(f"Takeoff → {TARGET_ALT} m")
+        print(f"Takeoff -> {TARGET_ALT} m")
         master.mav.command_long_send(
             master.target_system, master.target_component,
             mavutil.mavlink.MAV_CMD_NAV_TAKEOFF,

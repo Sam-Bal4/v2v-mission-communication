@@ -82,7 +82,7 @@ def turn(vehicle, direction_sign, duration_s):
 
 def avoid_obstacle(vehicle, lidar):
     """Full left-bypass maneuver."""
-    print("\n  [Avoidance] Obstacle detected – stopping")
+    print("\n  [Avoidance] Obstacle detected - stopping")
     send_stop(vehicle)
     lidar.led_obstacle()
     time.sleep(0.4)
@@ -108,8 +108,8 @@ def avoid_obstacle(vehicle, lidar):
 
 def main():
     print("=" * 52)
-    print("  TEST 11 – UGV ARM & AVOID (UGV side)")
-    print("  Ctrl+C → stops cleanly and disarms")
+    print("  TEST 11 - UGV ARM & AVOID (UGV side)")
+    print("  Ctrl+C -> stops cleanly and disarms")
     print("=" * 52)
 
     # ── 1. Init radio bridge ──────────────────────────────
@@ -153,7 +153,7 @@ def main():
             # Check for UAV stop signal
             hb = bridge.latest_uav_heartbeat
             if hb and hb.mission_phase != 11:
-                print(f"\nUAV sent phase={hb.mission_phase} – stopping.")
+                print(f"\nUAV sent phase={hb.mission_phase} - stopping.")
                 break
 
             dist = lidar.read_lidar()
