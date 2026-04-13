@@ -42,10 +42,19 @@ ACTIVATE_SCRIPT="$VENV_PATH/bin/activate"
 source "$ACTIVATE_SCRIPT"
 
 # ------ Verify Dependencies ------
-# We use a sentinel file to ensure the initial installation finished successfully
+# We use a sentinel file AND a module health check (for 'past' which dronekit needs)
 SENTINEL="$VENV_PATH/venv_ready"
-if [ ! -f "$SENTINEL" ]; then
-    echo -e "${YELLOW}Environment incomplete. Installing dependencies...${NC}"
+ENV_OK=true
+[ ! -f "$SENTINEL" ] && ENV_OK=false
+if [ "$ENV_OK" = true ]; then
+    if ! python -c "import past, numpy" &>/dev/null; then
+        echo -e "${YELLOW}Environment health check failed (missing modules). Repairing...${NC}"
+        ENV_OK=false
+    fi
+fi
+
+if [ "$ENV_OK" = false ]; then
+    echo -e "${YELLOW}Environment incomplete or corrupted. Installing dependencies...${NC}"
     python -m pip install --upgrade pip
     python -m pip install -e "$REPO_ROOT"
     touch "$SENTINEL"
