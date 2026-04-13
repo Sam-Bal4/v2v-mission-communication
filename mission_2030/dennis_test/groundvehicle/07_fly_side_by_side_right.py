@@ -1,4 +1,10 @@
 import time
+# Compatibility patch for dronekit
+import collections
+if not hasattr(collections, 'MutableMapping'):
+    import collections.abc
+    collections.MutableMapping = collections.abc.MutableMapping
+
 from dronekit import connect, VehicleMode
 
 def build_attitude_msg(vehicle, throttle, yaw_rate=0.0):

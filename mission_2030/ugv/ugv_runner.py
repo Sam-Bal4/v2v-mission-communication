@@ -8,6 +8,12 @@ Real DriveKit motion via DroneKit + SET_ATTITUDE_TARGET.
 import time
 import signal
 import math
+# Compatibility patch for dronekit on Python 3.10+
+import collections
+if not hasattr(collections, 'MutableMapping'):
+    import collections.abc
+    collections.MutableMapping = collections.abc.MutableMapping
+
 from dronekit import connect, VehicleMode
 from mission_2030.radio.v2v_bridge import V2VBridge
 from mission_2030.common.logging_utils import setup_logger

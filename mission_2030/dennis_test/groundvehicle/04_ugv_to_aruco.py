@@ -1,6 +1,12 @@
 import time
 import sys
 import os
+# Compatibility patch for dronekit
+import collections
+if not hasattr(collections, 'MutableMapping'):
+    import collections.abc
+    collections.MutableMapping = collections.abc.MutableMapping
+
 from dronekit import connect, VehicleMode
 
 sys.path.append(os.path.abspath("../../"))
