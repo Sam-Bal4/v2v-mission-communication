@@ -15,7 +15,9 @@ dependencies = [
     "pyserial",
     "pydantic",
     "dronekit",
-    "future"
+    "future",
+    "depthai",
+    "akida"
 ]
 
 [tool.setuptools.packages.find]

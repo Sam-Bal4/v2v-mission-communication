@@ -52,7 +52,7 @@ SENTINEL="$VENV_PATH/venv_ready"
 ENV_OK=true
 [ ! -f "$SENTINEL" ] && ENV_OK=false
 if [ "$ENV_OK" = true ]; then
-    if ! python -c "import past, numpy; assert int(numpy.__version__.split('.')[0]) < 2" &>/dev/null; then
+    if ! python -c "import past, numpy, depthai, akida; assert int(numpy.__version__.split('.')[0]) < 2" &>/dev/null; then
         echo -e "${YELLOW}Environment health check failed (NumPy >= 2.x detected or missing modules). Repairing...${NC}"
         ENV_OK=false
     fi
