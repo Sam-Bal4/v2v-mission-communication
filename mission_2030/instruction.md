@@ -29,26 +29,19 @@ git clone https://github.com/raccoon-exe/v2v-mission-communication.git
 cd v2v-mission-communication
 ```
 
-### 2. Install Python dependencies
-```bash
-# On UAV (Jetson Orin) — pyzed comes from ZED SDK installer, not pip
-pip3 install pymavlink opencv-python numpy pyserial pydantic
+### 2. Auto-Config (Recommended)
+You don't need to manually install dependencies. Our automated launchers now create a virtual environment and install everything for you on the first run.
 
-# On UGV (Jetson/Pi)
-pip3 install pymavlink dronekit pyserial gpiozero numpy pydantic
+**On the Drone/Rover (Linux):**
+```bash
+bash mission_2030/uav/start_mission.sh  # for UAV
+bash mission_2030/ugv/start_mission.sh  # for UGV
 ```
-> **ZED SDK**: Install from https://www.stereolabs.com/developers/release — this installs `pyzed` automatically.
 
-### 3. Set PYTHONPATH (required every terminal session, or add to ~/.bashrc)
-```bash
-cd v2v-mission-communication
-export PYTHONPATH=$(pwd)
-```
-Or permanently:
-```bash
-echo 'export PYTHONPATH=/path/to/v2v-mission-communication' >> ~/.bashrc
-source ~/.bashrc
-```
+**On Development PC (Windows):**
+Simply double-click the `.bat` files:
+- `mission_2030/uav/start_mission.bat`
+- `mission_2030/ugv/start_mission.bat`
 
 ### 4. Flash ESP32 bridges
 Each machine needs its own ESP32 flashed:
@@ -76,26 +69,15 @@ pio run --target upload
 ## Competition Day Startup Sequence
 
 ### UAV Side (Jetson Orin)
-
+Run the automated launcher and pick your mission from the menu:
 ```bash
-cd v2v-mission-communication
-export PYTHONPATH=$(pwd)
+bash mission_2030/uav/start_mission.sh
 ```
 
-Then pick the correct mission:
-
-| Mission | Command |
-|---------|---------|
-| Mission 1 (Basic hover + land on UGV) | `python3 mission_2030/uav/mission1_runner.py` |
-| Mission 2 (Scan field + send to UGV + land on UGV) | `python3 mission_2030/uav/mission2_runner.py` |
-| Mission 3 (Mission 2 + obstacle avoidance relay) | `python3 mission_2030/uav/mission3_runner.py` |
-
 ### UGV Side (Jetson/Pi)
-
+Run the automated launcher:
 ```bash
-cd v2v-mission-communication
-export PYTHONPATH=$(pwd)
-python3 mission_2030/ugv/ugv_runner.py
+bash mission_2030/ugv/start_mission.sh
 ```
 
 > **Start UGV first**, then start UAV. The UAV waits for a UGV heartbeat before arming.
@@ -135,34 +117,12 @@ Same as Mission 2, but:
 
 Always run these tests before the competition mission. Each test is fully self-contained.
 
+### Using Automated Launchers
+The easiest way is to use the `start_mission.sh` script, which includes a dedicated menu for all 10 hardware tests:
 ```bash
-cd v2v-mission-communication
-export PYTHONPATH=$(pwd)
-cd mission_2030/dennis_test
+bash mission_2030/uav/start_mission.sh
 ```
-
-### Drone Tests
-| Test | Command | What it Validates |
-|------|---------|-------------------|
-| 01 | `python3 drone/01_basic_flight.py` | Motor arming, takeoff, alt hold, safe land |
-| 02 | `python3 drone/02_aruco_land.py` | ZED camera opens, ArUco detection works |
-| 03 | `python3 drone/03_move_ugv_5ft.py` | ESP32 V2V link, UAV can command UGV |
-| 04 | `python3 drone/04_ugv_to_aruco.py` | ZED 3D point cloud works, coords sent to UGV |
-| 05 | `python3 drone/05_fly_side_by_side_forward.py` | Forward velocity vector in GUIDED mode |
-| 06 | `python3 drone/06_fly_side_by_side_left.py` | Left sway vector |
-| 07 | `python3 drone/07_fly_side_by_side_right.py` | Right sway vector |
-| 08 | `python3 drone/08_center_hover_high.py` | Proportional centering at 1.3 m |
-| 09 | `python3 drone/09_center_hover_low.py` | Centering at 0.5 m (landing approach) |
-| 10 | `python3 drone/10_precision_land.py` | Full LANDING_TARGET precision touchdown |
-
-### UGV Tests (run simultaneously with drone tests 3, 4, 5, 6, 7)
-| Test | Command |
-|------|---------|
-| 03 | `python3 groundvehicle/03_move_ugv_5ft.py` |
-| 04 | `python3 groundvehicle/04_ugv_to_aruco.py` |
-| 05 | `python3 groundvehicle/05_fly_side_by_side_forward.py` |
-| 06 | `python3 groundvehicle/06_fly_side_by_side_left.py` |
-| 07 | `python3 groundvehicle/07_fly_side_by_side_right.py` |
+(Select `t1` through `t10`)
 
 ---
 
@@ -190,7 +150,7 @@ cd mission_2030/dennis_test
 
 | Symptom | Fix |
 |---------|-----|
-| `ModuleNotFoundError: mission_2030` | Run `export PYTHONPATH=$(pwd)` from the repo root |
+| `ModuleNotFoundError` | Use the automated launchers; they handle the environment for you |
 | Drone never arms | Check `ARMING_CHECK` in params; ensure EKF3 is healthy (optical flow + lidar must be outputting) |
 | `DISTANCE_SENSOR` reads 0 | LidarLite not initialized — check I2C wiring and `RNGFND1_TYPE=3`, `RNGFND1_ADDR=98` |
 | Landing never confirms | Check `PLND_OPTIONS=1` is set in Mission Planner |
