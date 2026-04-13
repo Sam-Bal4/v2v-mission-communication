@@ -1,14 +1,13 @@
 """
-Test 11 - UGV Arm & Obstacle Avoidance (UGV side)
+Test 11 - UGV Triple-Sensor Arm & Avoid (UGV side)
 ===================================================
-Mirrors the production Challenge3v2.py logic, triggered by a UAV phase=11
-radio signal instead of running standalone.
+Orchestrates three sensors for maximum obstacle reliability:
+1. TF-Nova Lidar (UART) - High accuracy long range.
+2. Oak-D Lite + BrainChip (Camera) - AI-based object detection (cones, boxes).
+3. Ultrasonic (GPIO) - Low-speed short-range fail-safe.
 
-Obstacle avoidance uses:
-  - TF-Nova lidar (UART /dev/ttyAMA0) with rolling 3-sample filter
-  - Compass-guided 90-degree turns (vehicle.heading, slow-update method)
-  - GPIO LEDs: green = clear, red = obstacle/avoidance active
-  - Full U-shape bypass: Left -> Sidestep -> Right -> Forward -> Right -> Sidestep -> Left
+Uses compass-guided turns and a production U-shape bypass maneuver.
+Triggered by UAV phase=11 over ESP32 V2V radio.
 
 Run on Raspberry Pi from repo root:
   export PYTHONPATH=$(pwd)
@@ -27,43 +26,52 @@ if not hasattr(collections, 'MutableMapping'):
     collections.MutableMapping = collections.abc.MutableMapping
 
 from dronekit import connect, VehicleMode
-
 import serial
+
+# Sensor-specific imports
+import depthai as dai
+try:
+    from akida import Model, devices
+except ImportError:
+    Model, devices = None, None
+
+from gpiozero import DistanceSensor
+try:
+    from gpiozero.pins.lgpio import LGPIOFactory
+    _pin_factory = LGPIOFactory()
+except ImportError:
+    _pin_factory = None
 
 sys.path.append(os.path.abspath("../../"))
 from mission_2030.radio.v2v_bridge import V2VBridge
 
-# ── Ports ────────────────────────────────────────────────────────────────────
-UGV_PORT        = "/dev/ttyACM0"
-UGV_BAUD        = 115200
-ESP32_PORT      = "/dev/ttyUSB0"
-LIDAR_PORT      = "/dev/ttyAMA0"
-LIDAR_BAUD      = 115200
+# ── Configuration ─────────────────────────────────────────────────────────────
+UGV_PORT           = "/dev/ttyACM0"
+UGV_BAUD           = 115200
+ESP32_PORT         = "/dev/ttyUSB0"
+LIDAR_PORT         = "/dev/ttyAMA0"
+LIDAR_BAUD         = 115200
 
-# ── GPIO LEDs ─────────────────────────────────────────────────────────────────
-GREEN_LED_PIN   = 16
-RED_LED_PIN     = 19
+# GPIO Pins
+GREEN_LED_PIN      = 16
+RED_LED_PIN        = 19
+ULTRASONIC_ECHO    = 10
+ULTRASONIC_TRIG    = 9
 
-# ── Motion parameters (from Challenge3v2 tuning) ─────────────────────────────
-SPEED_MPS                = 0.8 * 0.44704   # 0.8 mph in m/s
-OBSTACLE_THRESHOLD_M     = 2.0 * 0.3048    # 2 ft in metres
-AVOIDANCE_SIDESTEP_M     = 2.0 * 0.3048    # side-step width
-BYPASS_FORWARD_M         = 3.0 * 0.3048    # forward leg while bypassing
-AVOIDANCE_PROGRESS_M     = 4.0 * 0.3048    # estimated net forward gain per bypass
-DRIVE_DISTANCE_M         = 10.0 * 0.3048   # how far to drive before stopping
+# Detection Constants
+MODEL_PATH         = "/home/raspberry/Desktop/UGVCode/akida_model.fbz"
+CONF_THRESH        = 0.60
+OBSTACLE_THRESHOLD_M = 1.5 * 0.3048   # ~0.45m
+AVOIDANCE_SIDESTEP_M = 2.0 * 0.3048
+BYPASS_FORWARD_M     = 3.0 * 0.3048
+DRIVE_DISTANCE_M     = 10.0 * 0.3048
+SPEED_MPS          = 0.8 * 0.44704    # 0.8 mph
 
-# ── Compass-based turn tuning (from Challenge3v2) ─────────────────────────────
-TURN_RATE_DEG_S          = 10.0
-HEADING_CHECK_INTERVAL_S = 0.20
-STOP_EARLY_DEG           = 8.0
-STABLE_COUNT_REQUIRED    = 2
-TURN_TOLERANCE_DEG       = 5.0
-
-# ── TF-Nova constants ─────────────────────────────────────────────────────────
-FRAME_HEADER             = 0x59
-LIDAR_MIN_CONFIDENCE     = 10
-LIDAR_NO_TARGET_M        = 9999.0
-LED_FLASH_INTERVAL_S     = 0.3
+# Compass/Turn Constants
+TURN_RATE_DEG_S    = 10.0
+STOP_EARLY_DEG     = 8.0
+STABLE_COUNT_REQ   = 2
+HEADING_INTERVAL_S = 0.2
 
 # ── Signal handler ────────────────────────────────────────────────────────────
 _abort = False
@@ -73,330 +81,238 @@ def _sigint(sig, frame):
 signal.signal(signal.SIGINT,  _sigint)
 signal.signal(signal.SIGTERM, _sigint)
 
+# ── Helper Classes ────────────────────────────────────────────────────────────
 
-# ── LED helpers ───────────────────────────────────────────────────────────────
-def open_leds():
-    try:
-        from gpiozero import LED
+class MultiSensorDetector:
+    FRAME_HEADER = 0x59
+
+    def __init__(self, lidar_port, model_path):
+        self.lidar_ser = serial.Serial(
+            port=lidar_port, baudrate=LIDAR_BAUD,
+            bytesize=serial.EIGHTBITS, parity=serial.PARITY_NONE,
+            stopbits=serial.STOPBITS_ONE, timeout=0.1
+        )
+        self.lidar_recent = []
+
+        # Ultrasonic
         try:
-            from gpiozero.pins.lgpio import LGPIOFactory
-            factory = LGPIOFactory()
-        except ImportError:
-            factory = None
-        kwargs = {"pin_factory": factory} if factory else {}
-        green = LED(GREEN_LED_PIN, **kwargs)
-        red   = LED(RED_LED_PIN, **kwargs)
-        green.off()
-        red.off()
-        return green, red
-    except Exception as e:
-        print(f"[LED] GPIO unavailable: {e}  (running without LEDs)")
-        return None, None
+            self.us_sensor = DistanceSensor(
+                echo=ULTRASONIC_ECHO, trigger=ULTRASONIC_TRIG,
+                max_distance=5.0, pin_factory=_pin_factory
+            )
+        except Exception as e:
+            print(f"[WARN] Ultrasonic init failed: {e}")
+            self.us_sensor = None
 
-def led_clear(green, red):
-    if red:   red.off()
-    if green: green.on()
+        # Camera + Akida
+        self.cam_pipeline = None
+        self.akida_model = None
+        if Model and os.path.exists(model_path):
+            try:
+                self.akida_model = Model(model_path)
+                devs = devices()
+                if devs:
+                    self.akida_model.map(devs[0])
+                    print(f"Akida BrainChip mapped [OK]")
+                    self._setup_camera()
+            except Exception as e:
+                print(f"[WARN] Akida/Camera init failed: {e}")
+        else:
+            print(f"[WARN] Akida model not found at {model_path} - Camera AI disabled.")
 
-def led_obstacle(green, red):
-    if green: green.off()
-    if red:   red.on()
+    def _setup_camera(self):
+        self.cam_pipeline = dai.Pipeline()
+        cam = self.cam_pipeline.create(dai.node.ColorCamera)
+        cam.setResolution(dai.ColorCameraProperties.SensorResolution.THE_1080_P)
+        cam.setInterleaved(False)
+        cam.setColorOrder(dai.ColorCameraProperties.ColorOrder.BGR)
+        cam.setFps(15)
 
-def flash_red_tick(red, last_t):
-    now = time.time()
-    if red and now - last_t >= LED_FLASH_INTERVAL_S:
-        red.toggle()
-        return now
-    return last_t
+        xout = self.cam_pipeline.create(dai.node.XLinkOut)
+        xout.setStreamName("rgb")
+        cam.video.link(xout.input)
 
+        device = dai.Device(self.cam_pipeline)
+        self.cam_q = device.getOutputQueue(name="rgb", maxSize=4, blocking=False)
+        print("Oak-D Lite Camera ready [OK]")
 
-# ── TF-Nova lidar ─────────────────────────────────────────────────────────────
-def open_lidar():
-    ser = serial.Serial(
-        port=LIDAR_PORT, baudrate=LIDAR_BAUD,
-        bytesize=serial.EIGHTBITS, parity=serial.PARITY_NONE,
-        stopbits=serial.STOPBITS_ONE, timeout=0.1
-    )
-    ser.reset_input_buffer()
-    print(f"TF-Nova lidar opened on {LIDAR_PORT}")
-    return ser
+    def read_lidar(self):
+        self.lidar_ser.reset_input_buffer()
+        for _ in range(18):
+            b1 = self.lidar_ser.read(1)
+            if not b1 or b1[0] != self.FRAME_HEADER: continue
+            b2 = self.lidar_ser.read(1)
+            if not b2 or b2[0] != self.FRAME_HEADER: continue
+            payload = self.lidar_ser.read(7)
+            if len(payload) < 7: break
+            dist_l, dist_h, _, _, _, conf, _ = payload
+            if conf < 10: continue
+            dist = (dist_h << 8) | dist_l
+            return dist / 100.0
+        return 9999.0
 
-def read_lidar_m(ser):
-    ser.reset_input_buffer()
-    for _ in range(18):
-        b1 = ser.read(1)
-        if not b1 or b1[0] != FRAME_HEADER: continue
-        b2 = ser.read(1)
-        if not b2 or b2[0] != FRAME_HEADER: continue
-        payload = ser.read(7)
-        if len(payload) < 7: return LIDAR_NO_TARGET_M
-        dist_l, dist_h, _, _, _, confidence, checksum = payload
-        raw = [FRAME_HEADER, FRAME_HEADER, dist_l, dist_h,
-               payload[2], payload[3], payload[4], confidence]
-        if (sum(raw) & 0xFF) != checksum: continue
-        distance_cm = (dist_h << 8) | dist_l
-        if confidence < LIDAR_MIN_CONFIDENCE or distance_cm == 0:
-            return LIDAR_NO_TARGET_M
-        return distance_cm / 100.0
-    return LIDAR_NO_TARGET_M
+    def check_all(self):
+        """Returns (triggered_bool, reason_string, distance_val)"""
+        # 1. Lidar check (Filtered)
+        l_raw = self.read_lidar()
+        if l_raw < 9999.0:
+            self.lidar_recent.append(l_raw)
+            if len(self.lidar_recent) > 3: self.lidar_recent.pop(0)
+        l_dist = min(self.lidar_recent) if self.lidar_recent else 9999.0
+        if l_dist < OBSTACLE_THRESHOLD_M:
+            return True, "LIDAR", l_dist
 
-def get_filtered_lidar(ser, recent, window=3):
-    raw = read_lidar_m(ser)
-    if raw < LIDAR_NO_TARGET_M:
-        recent.append(raw)
-        if len(recent) > window:
-            recent.pop(0)
-    return raw, (min(recent) if recent else LIDAR_NO_TARGET_M)
+        # 2. Ultrasonic check
+        if self.us_sensor:
+            us_dist = self.us_sensor.distance
+            if us_dist < OBSTACLE_THRESHOLD_M:
+                return True, "ULTRASONIC", us_dist
 
+        # 3. Camera check (Akida inference on middle third)
+        if self.akida_model and self.cam_q.has():
+            import cv2
+            frame = self.cam_q.get().getCvFrame()
+            # Mini-preprocess for Akida (224x224)
+            img = cv2.resize(frame, (224, 224))
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            out = self.akida_model.predict(img.reshape(1, 224, 224, 3))[0]
+            # Check center columns of grid (assuming grid 28x28 or similar)
+            # This is a simplified FOMO check
+            grid_h, grid_w, classes = out.shape
+            mid_start = int(grid_w * 0.33)
+            mid_end = int(grid_w * 0.66)
+            for gy in range(grid_h):
+                for gx in range(mid_start, mid_end):
+                    cls = int(np.argmax(out[gy, gx]))
+                    if cls != 0 and out[gy, gx, cls] > CONF_THRESH:
+                        return True, f"CAMERA ({cls})", 0.5 # Estimated distance
 
-# ── Vehicle helpers ───────────────────────────────────────────────────────────
+        return False, "CLEAR", 9999.0
+
+    def close(self):
+        self.lidar_ser.close()
+        if self.us_sensor: self.us_sensor.close()
+
+# ── Main ─────────────────────────────────────────────────────────────────────
+
 def build_drive_msg(vehicle, throttle, yaw_rate_deg_s=0.0):
     return vehicle.message_factory.set_attitude_target_encode(
-        0, 0, 0, 0xA3,
-        [1.0, 0.0, 0.0, 0.0],
-        0.0, 0.0, math.radians(yaw_rate_deg_s),
-        throttle
+        0, 0, 0, 0xA3, [1.0, 0.0, 0.0, 0.0], 0.0, 0.0, math.radians(yaw_rate_deg_s), throttle
     )
 
-def send_stop(vehicle, repeats=5):
-    msg = build_drive_msg(vehicle, 0.0)
-    for _ in range(repeats):
-        vehicle.send_mavlink(msg)
-        time.sleep(0.1)
-
-def get_heading(vehicle):
-    h = vehicle.heading
-    return float(h) if h is not None else 0.0
-
-def angle_diff_deg(current, start):
-    return ((current - start + 540) % 360) - 180
-
-def arm_ugv(vehicle):
-    print("Setting ARMING_CHECK=0 (bypass GPS requirement)...")
-    vehicle.parameters["ARMING_CHECK"] = 0
-    time.sleep(0.5)
-
-    if vehicle.mode.name == "HOLD":
-        vehicle.mode = VehicleMode("MANUAL")
-        t0 = time.time()
-        while vehicle.mode.name != "MANUAL" and time.time() - t0 < 5:
-            time.sleep(0.1)
-
-    print("Arming...")
-    vehicle.armed = True
-    t0 = time.time()
-    while not vehicle.armed and time.time() - t0 < 10:
-        time.sleep(0.1)
-    if not vehicle.armed:
-        raise RuntimeError("Failed to arm UGV.")
-    print("Armed [OK]")
-
-    print("Switching to GUIDED...")
-    vehicle.mode = VehicleMode("GUIDED")
-    t0 = time.time()
-    while vehicle.mode.name != "GUIDED" and time.time() - t0 < 5:
-        time.sleep(0.1)
-    print(f"Mode: {vehicle.mode.name}  Armed: {vehicle.armed}")
-
-
-# ── Compass-accurate turns ────────────────────────────────────────────────────
-def turn_left(vehicle, angle_deg, green, red, flashing=False):
-    start = get_heading(vehicle)
+def turn(vehicle, direction_sign, angle_deg):
+    """direction_sign: -1 = left, 1 = right"""
+    start = vehicle.heading
     stop_at = abs(angle_deg) - STOP_EARLY_DEG
-    msg = build_drive_msg(vehicle, 0.0, -abs(TURN_RATE_DEG_S))
+    msg = build_drive_msg(vehicle, 0.0, direction_sign * TURN_RATE_DEG_S)
     stable = 0
-    last_flash = time.time()
-    print(f"Turn LEFT {angle_deg:.0f}  from heading={start:.1f}")
-    while True:
+    t_start = time.time()
+    while not _abort:
         vehicle.send_mavlink(msg)
-        if flashing: last_flash = flash_red_tick(red, last_flash)
-        time.sleep(HEADING_CHECK_INTERVAL_S)
-        delta = angle_diff_deg(get_heading(vehicle), start)
-        if delta <= -(stop_at - TURN_TOLERANCE_DEG):
-            stable += 1
-        else:
-            stable = 0
-        if stable >= STABLE_COUNT_REQUIRED:
-            break
-    send_stop(vehicle)
-    time.sleep(0.6)
-    print(f"  -> heading now {get_heading(vehicle):.1f}")
+        time.sleep(HEADING_INTERVAL_S)
+        delta = ((vehicle.heading - start + 540) % 360) - 180
+        if direction_sign == 1: # Right
+            if delta >= (stop_at - 5): stable += 1
+            else: stable = 0
+        else: # Left
+            if delta <= -(stop_at - 5): stable += 1
+            else: stable = 0
+        if stable >= STABLE_COUNT_REQ or time.time() - t_start > 10: break
+    msg_stop = build_drive_msg(vehicle, 0.0)
+    for _ in range(5): vehicle.send_mavlink(msg_stop); time.sleep(0.1)
 
-def turn_right(vehicle, angle_deg, green, red, flashing=False):
-    start = get_heading(vehicle)
-    stop_at = abs(angle_deg) - STOP_EARLY_DEG
-    msg = build_drive_msg(vehicle, 0.0, abs(TURN_RATE_DEG_S))
-    stable = 0
-    last_flash = time.time()
-    print(f"Turn RIGHT {angle_deg:.0f}  from heading={start:.1f}")
-    while True:
-        vehicle.send_mavlink(msg)
-        if flashing: last_flash = flash_red_tick(red, last_flash)
-        time.sleep(HEADING_CHECK_INTERVAL_S)
-        delta = angle_diff_deg(get_heading(vehicle), start)
-        if delta >= (stop_at - TURN_TOLERANCE_DEG):
-            stable += 1
-        else:
-            stable = 0
-        if stable >= STABLE_COUNT_REQUIRED:
-            break
-    send_stop(vehicle)
-    time.sleep(0.6)
-    print(f"  -> heading now {get_heading(vehicle):.1f}")
-
-
-# ── Forward drive with lidar obstacle check ───────────────────────────────────
-def drive_forward(vehicle, lidar_ser, distance_m, green, red,
-                  check_obstacle=True, flashing=False, label="DRIVE"):
-    if distance_m <= 0:
-        return {"obstacle_hit": False, "distance_completed_m": 0.0}
-
-    duration_s = distance_m / SPEED_MPS
-    msg = build_drive_msg(vehicle, 1.0)
-    recent = []
-    start_t = time.time()
-    last_flash = time.time()
-    last_print = 0.0
-    print(f"{label}: driving {distance_m:.2f} m @ {SPEED_MPS:.3f} m/s")
-
-    while (time.time() - start_t) < duration_s and not _abort:
-        vehicle.send_mavlink(msg)
-        elapsed = time.time() - start_t
-        if flashing: last_flash = flash_red_tick(red, last_flash)
-
-        raw, filtered = get_filtered_lidar(lidar_ser, recent)
-
-        if elapsed - last_print >= 0.5:
-            lidar_str = f"{filtered:.2f} m" if filtered < LIDAR_NO_TARGET_M else "no target"
-            print(f"  t={elapsed:.1f}s  lidar={lidar_str}  heading={get_heading(vehicle):.0f}")
-            last_print = elapsed
-
-        if check_obstacle and filtered < OBSTACLE_THRESHOLD_M:
-            done = min(elapsed * SPEED_MPS, distance_m)
-            print(f"  *** Obstacle at {filtered:.2f} m - STOP! (completed {done:.2f} m)")
-            send_stop(vehicle)
-            return {"obstacle_hit": True, "distance_completed_m": done}
-
-        time.sleep(0.05)
-
-    send_stop(vehicle)
-    return {"obstacle_hit": False, "distance_completed_m": distance_m}
-
-
-# ── U-shape bypass maneuver ───────────────────────────────────────────────────
-def avoid_obstacle(vehicle, lidar_ser, green, red):
-    print("\n[Avoidance] Starting U-shape bypass (red LED on)...")
-    led_obstacle(green, red)
-    time.sleep(0.5)
-
-    # Left -> sidestep -> right -> forward -> right -> sidestep back -> left
-    turn_left(vehicle, 90.0, green, red, flashing=True); time.sleep(4.0)
-    drive_forward(vehicle, lidar_ser, AVOIDANCE_SIDESTEP_M, green, red,
-                  check_obstacle=False, flashing=True, label="SIDESTEP"); time.sleep(4.0)
-    turn_right(vehicle, 90.0, green, red, flashing=True); time.sleep(4.0)
-    drive_forward(vehicle, lidar_ser, BYPASS_FORWARD_M, green, red,
-                  check_obstacle=False, flashing=True, label="BYPASS FWD"); time.sleep(4.0)
-    turn_right(vehicle, 90.0, green, red, flashing=True); time.sleep(4.0)
-    drive_forward(vehicle, lidar_ser, AVOIDANCE_SIDESTEP_M, green, red,
-                  check_obstacle=False, flashing=True, label="RETURN"); time.sleep(4.0)
-    turn_left(vehicle, 90.0, green, red, flashing=True); time.sleep(4.0)
-
-    print("[Avoidance] Bypass complete - resuming mission direction")
-    led_clear(green, red)
-    return AVOIDANCE_PROGRESS_M
-
-
-# ── Main leg executor ─────────────────────────────────────────────────────────
-def execute_leg(vehicle, lidar_ser, green, red, total_m, label="DRIVE"):
-    remaining = total_m
-    print(f"\n--- {label}: total {remaining:.2f} m ---")
-    while remaining > 0.0 and not _abort:
-        result = drive_forward(vehicle, lidar_ser, remaining, green, red,
-                               check_obstacle=True, label=label)
-        remaining -= result["distance_completed_m"]
-        remaining = max(0.0, remaining)
-        if not result["obstacle_hit"]:
-            print(f"{label}: leg complete.")
-            break
-        progress = avoid_obstacle(vehicle, lidar_ser, green, red)
-        remaining -= progress
-        remaining = max(0.0, remaining)
-        print(f"{label}: remaining after avoidance = {remaining:.2f} m")
-
-
-# ── Entry point ───────────────────────────────────────────────────────────────
 def main():
     print("=" * 52)
-    print("  TEST 11 - UGV ARM & AVOID (UGV side)")
-    print("  Ctrl+C -> stops cleanly and disarms")
+    print("  TEST 11 - UGV TRIPLE-SENSOR ARM & AVOID")
+    print("  (Lidar + Ultrasonic + Oak-D Camera)")
     print("=" * 52)
 
-    # Init radio bridge
-    bridge = V2VBridge(ESP32_PORT)
-    bridge.connect()
-    print("ESP32 bridge connected [OK]")
-
+    bridge = V2VBridge(ESP32_PORT); bridge.connect()
+    
     # Init LEDs
-    green, red = open_leds()
-
-    # Init Lidar
-    lidar_ser = open_lidar()
-    time.sleep(1.0)
-    sample = read_lidar_m(lidar_ser)
-    print(f"Lidar warm-up reading: {sample:.2f} m" if sample < LIDAR_NO_TARGET_M else "Lidar warm-up: no target")
-
-    # Wait for UAV Phase 11
-    print("Waiting for UAV Phase 11 command over radio...")
-    while not _abort:
-        hb = bridge.latest_uav_heartbeat
-        if hb and hb.mission_phase == 11:
-            print("Phase 11 received from UAV [OK]")
-            break
-        time.sleep(0.3)
-
-    if _abort:
-        lidar_ser.close()
-        bridge.stop()
-        return
-
-    # Connect DroneKit & arm
-    print(f"Connecting to UGV on {UGV_PORT}...")
-    vehicle = connect(UGV_PORT, wait_ready=True, baud=UGV_BAUD)
-
-    @vehicle.on_message('STATUSTEXT')
-    def on_fc_msg(self, name, message):
-        print(f"[FC] {message.text}")
-
+    from gpiozero import LED
     try:
-        led_clear(green, red)
-        arm_ugv(vehicle)
+        green = LED(GREEN_LED_PIN, pin_factory=_pin_factory)
+        red = LED(RED_LED_PIN, pin_factory=_pin_factory)
+        green.off(); red.off()
+    except: green = red = None
 
-        # Drive forward (with full obstacle avoidance) until UAV stops Phase 11
-        print("Driving forward with obstacle avoidance...")
-        execute_leg(vehicle, lidar_ser, green, red, DRIVE_DISTANCE_M, label="LEG 1")
+    # Init multi-sensor suite
+    import numpy as np # Needed for Akida processing
+    detector = MultiSensorDetector(LIDAR_PORT, MODEL_PATH)
 
-        print("Drive complete. Checking UAV signal for more...")
-        # If UAV is still broadcasting phase=11, keep looping
-        while not _abort:
-            hb = bridge.latest_uav_heartbeat
-            if hb and hb.mission_phase != 11:
-                print(f"UAV sent phase={hb.mission_phase} - stopping.")
-                break
-            time.sleep(0.5)
+    # Wait for UAV trigger
+    print("Waiting for UAV Phase 11...")
+    while not _abort:
+        if bridge.latest_uav_heartbeat and bridge.latest_uav_heartbeat.mission_phase == 11:
+            print("Command Received [OK]")
+            break
+        time.sleep(0.5)
 
+    if _abort: bridge.stop(); return
+
+    # Connect & Arm
+    vehicle = connect(UGV_PORT, wait_ready=True, baud=UGV_BAUD)
+    print("Arming UGV...")
+    vehicle.mode = VehicleMode("GUIDED")
+    vehicle.armed = True
+    while not vehicle.armed and not _abort: time.sleep(0.1)
+    
+    if green: green.on()
+    print("UGV Driving with Triple-Sensor Avoidance [OK]")
+
+    # Main drive loop
+    start_t = time.time()
+    try:
+        while not _abort and (time.time() - start_t) < 60:
+            # Check UAV stop
+            if bridge.latest_uav_heartbeat and bridge.latest_uav_heartbeat.mission_phase != 11:
+                print("UAV commanded stop."); break
+
+            # Sensor fusion check
+            triggered, reason, dist = detector.check_all()
+            if triggered:
+                print(f"!!! OBSTACLE detected by {reason} at {dist:.2f}m !!!")
+                if green: green.off()
+                if red: red.on()
+                
+                # U-Shape Bypass Maneuver
+                print(" -> Executing Bypass...")
+                turn(vehicle, -1, 90);  time.sleep(1) # Left
+                # Move sideways
+                sidestep_msg = build_drive_msg(vehicle, 0.5)
+                ts = time.time()
+                while time.time() - ts < 3: vehicle.send_mavlink(sidestep_msg); time.sleep(0.1)
+                
+                turn(vehicle, 1, 90); time.sleep(1) # Right
+                # Move forward past obstacle
+                bypass_msg = build_drive_msg(vehicle, 0.5)
+                ts = time.time()
+                while time.time() - ts < 5: vehicle.send_mavlink(bypass_msg); time.sleep(0.1)
+                
+                turn(vehicle, 1, 90); time.sleep(1) # Right
+                # Move back to original line
+                while time.time() - ts < 3: vehicle.send_mavlink(sidestep_msg); time.sleep(0.1)
+                
+                turn(vehicle, -1, 90); time.sleep(1) # Left
+                
+                if red: red.off()
+                if green: green.on()
+                print(" -> Path cleared, resuming.")
+
+            else:
+                # Drive forward
+                vehicle.send_mavlink(build_drive_msg(vehicle, 0.5))
+                time.sleep(0.1)
     finally:
-        print("Stopping and disarming UGV...")
-        send_stop(vehicle)
-        led_obstacle(green, red)
+        print("Finalizing...")
         vehicle.armed = False
-        t0 = time.time()
-        while vehicle.armed and time.time() - t0 < 10:
-            time.sleep(0.2)
         if green: green.off()
-        if red:   red.off()
-        lidar_ser.close()
+        if red: red.off()
+        detector.close()
         bridge.stop()
         vehicle.close()
-        print("Test 11 UGV complete [OK]")
+        print("Test 11 Complete [OK]")
 
 if __name__ == "__main__":
     main()

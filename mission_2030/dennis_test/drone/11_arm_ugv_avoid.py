@@ -1,5 +1,5 @@
 """
-Test 11 – UGV Arm & Obstacle Avoidance (UAV side = radio commander only)
+Test 11 - UGV Arm & Obstacle Avoidance (UAV side = radio commander only)
 =========================================================================
 No drone arming or flight. This script simply opens the ESP32 V2V bridge
 and broadcasts phase=11 so the UGV knows to arm and start driving.
