@@ -18,24 +18,38 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 MISSION_ROOT="$REPO_ROOT/mission_2030"
 VENV_PATH="$REPO_ROOT/.venv"
 
+# ------ Find Python Command ------
+PY_CMD="python3"
+if ! command -v "$PY_CMD" &>/dev/null; then
+    PY_CMD="python"
+fi
+if ! command -v "$PY_CMD" &>/dev/null; then
+    echo -e "${RED}ERROR: Neither python3 nor python found. Install it first.${NC}"
+    exit 1
+fi
+
 # ------ Create/Activate Virtual Environment ------
 if [ ! -d "$VENV_PATH" ]; then
     echo -e "${YELLOW}Virtual environment not found. Creating one at $VENV_PATH...${NC}"
-    if ! command -v python3 &>/dev/null; then
-        echo -e "${RED}ERROR: python3 not found. Cannot create venv.${NC}"
-        exit 1
-    fi
-    python3 -m venv "$VENV_PATH"
+    "$PY_CMD" -m venv "$VENV_PATH"
+    
+    # Check if bin/pip or Scripts/pip exists
+    PIP_EXE="$VENV_PATH/bin/pip"
+    [ ! -f "$PIP_EXE" ] && PIP_EXE="$VENV_PATH/Scripts/pip"
+
     echo -e "${GREEN}Installing dependencies from pyproject.toml...${NC}"
-    "$VENV_PATH/bin/pip" install --upgrade pip
-    "$VENV_PATH/bin/pip" install -e "$REPO_ROOT"
+    "$PIP_EXE" install --upgrade pip
+    "$PIP_EXE" install -e "$REPO_ROOT"
 else
     echo -e "${CYAN}Using existing virtual environment at $VENV_PATH${NC}"
 fi
 
-# Activate the venv
+# Activate the venv (handle bin/activate vs Scripts/activate)
+ACTIVATE_SCRIPT="$VENV_PATH/bin/activate"
+[ ! -f "$ACTIVATE_SCRIPT" ] && ACTIVATE_SCRIPT="$VENV_PATH/Scripts/activate"
+
 # shellcheck source=/dev/null
-source "$VENV_PATH/bin/activate"
+source "$ACTIVATE_SCRIPT"
 
 # ------ Export PYTHONPATH ------
 export PYTHONPATH="$REPO_ROOT"
