@@ -35,7 +35,7 @@ def main():
 
     bridge = V2VBridge(ESP32_PORT)
     bridge.connect()
-    print("ESP32 bridge connected ✓")
+    print("ESP32 bridge connected [OK]")
 
     print(f"Broadcasting Phase 11 (UGV: Arm & Drive) for {BROADCAST_DURATION_S}s...")
     seq = 0
@@ -54,7 +54,7 @@ def main():
             time.sleep(0.1)
 
         bridge.stop()
-        print("Test 11 UAV-side complete ✓")
+        print("Test 11 UAV-side complete [OK]")
 
 if __name__ == "__main__":
     main()

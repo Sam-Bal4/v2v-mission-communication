@@ -43,7 +43,7 @@ def main():
     while time.time() - t_takeoff < 15:
         alt = get_lidar_alt(master)
         if alt and alt >= 1.3 * 0.9:
-            print("Altitude reached ✓")
+            print("Altitude reached [OK]")
             break
         time.sleep(0.2)
 
@@ -56,7 +56,7 @@ def main():
     while not landed and time.time() - start_t < 60:
         # Check landing status instantly!
         if is_vehicle_disarmed(master):
-            print("Landed and Disarmed successfully ✓")
+            print("Landed and Disarmed successfully [OK]")
             landed = True
             break
 

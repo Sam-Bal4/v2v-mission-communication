@@ -35,7 +35,7 @@ def main():
     while time.time() - t_takeoff < 15:
         alt = get_lidar_alt(master)
         if alt and alt >= TARGET_ALT * 0.9:
-            print("Altitude reached ✓")
+            print("Altitude reached [OK]")
             break
         time.sleep(0.2)
 

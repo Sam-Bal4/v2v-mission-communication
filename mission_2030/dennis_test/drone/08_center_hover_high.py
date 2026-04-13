@@ -50,7 +50,7 @@ def main():
     while time.time() - t_takeoff < 15:
         alt = get_lidar_alt(master)
         if alt and alt >= 1.3 * 0.9:
-            print("Altitude reached ✓")
+            print("Altitude reached [OK]")
             break
         time.sleep(0.2)
 
@@ -93,7 +93,7 @@ def main():
     print("Landing...")
     master.mav.set_mode_send(master.target_system, mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED, mapping["LAND"])
     if wait_disarm(master, 60):
-        print("Test successful ✓")
+        print("Test successful [OK]")
     else:
         print("Disarm timeout.")
 

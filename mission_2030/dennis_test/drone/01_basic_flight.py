@@ -73,7 +73,7 @@ def main():
         t0 = time.time()
         while time.time() - t0 < 20 and not _abort:
             if get_lidar_alt(master) >= TARGET_ALT * 0.90:
-                print(f"\nTarget altitude reached ✓")
+                print(f"\nTarget altitude reached [OK]")
                 break
             time.sleep(0.2)
 

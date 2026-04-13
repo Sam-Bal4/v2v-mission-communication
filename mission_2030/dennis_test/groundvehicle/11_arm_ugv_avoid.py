@@ -115,18 +115,18 @@ def main():
     # ── 1. Init radio bridge ──────────────────────────────
     bridge = V2VBridge(ESP32_PORT)
     bridge.connect()
-    print("ESP32 bridge connected ✓")
+    print("ESP32 bridge connected [OK]")
 
     # ── 2. Init Lidar ─────────────────────────────────────
     lidar = ObstacleAvoidance(port="/dev/ttyAMA0", baud=115200)
-    print("TF-Nova Lidar initialised ✓")
+    print("TF-Nova Lidar initialised [OK]")
 
     # ── 3. Wait for UAV start signal ──────────────────────
     print("Waiting for UAV Phase 11 command over radio...")
     while not _abort:
         hb = bridge.latest_uav_heartbeat
         if hb and hb.mission_phase == 11:
-            print("Phase 11 received from UAV ✓")
+            print("Phase 11 received from UAV [OK]")
             break
         time.sleep(0.3)
 
@@ -173,7 +173,7 @@ def main():
             time.sleep(0.2)
         bridge.stop()
         vehicle.close()
-        print("Test 11 UGV complete ✓")
+        print("Test 11 UGV complete [OK]")
 
 if __name__ == "__main__":
     main()
