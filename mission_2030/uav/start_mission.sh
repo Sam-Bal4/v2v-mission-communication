@@ -12,6 +12,11 @@
 
 set -e   # exit on unexpected errors
 
+# ------ Bash Guard (Forces script to run in Bash if run via 'sh') ------
+if [ -z "$BASH_VERSION" ]; then
+    exec bash "$0" "$@"
+fi
+
 # ------ Resolve REPO ROOT regardless of where you launch from ------
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -31,7 +36,8 @@ fi
 # ------ Create/Activate Virtual Environment ------
 if [ ! -d "$VENV_PATH" ]; then
     echo -e "${YELLOW}Virtual environment not found. Creating one at $VENV_PATH...${NC}"
-    "$PY_CMD" -m venv "$VENV_PATH"
+    # Use --system-site-packages so we can access Jetson's pyzed/cv2 libs
+    "$PY_CMD" -m venv --system-site-packages "$VENV_PATH"
 fi
 
 # Activate the venv (handle bin/activate vs Scripts/activate)
