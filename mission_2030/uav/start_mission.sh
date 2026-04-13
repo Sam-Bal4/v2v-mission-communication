@@ -81,10 +81,10 @@ read -rp "  Your choice: " CHOICE
 run_script() {
     local SCRIPT="$1"
     echo ""
-    echo -e "${GREEN}Running: python3 $SCRIPT${NC}"
+    echo -e "${GREEN}Running: python $SCRIPT${NC}"
     echo -e "${YELLOW}>>> Press Ctrl+C at any time — drone will land safely <<<${NC}"
     echo ""
-    python3 "$SCRIPT"
+    python "$SCRIPT"
     echo ""
     echo -e "${GREEN}Script finished.${NC}"
 }
