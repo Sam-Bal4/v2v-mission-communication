@@ -1,7 +1,10 @@
 import time
 import cv2
 from pymavlink import mavutil
-import pyzed.sl as sl
+try:
+    import pyzed.sl as sl
+except ImportError:
+    sl = None
 
 DRONE_PORT = "/dev/ttyACM0"
 BAUD_RATE = 57600
@@ -10,6 +13,10 @@ TARGET_ALT = 1.3
 def main():
     print("--- Test 2: Camera + Flight ---")
     
+    if sl is None:
+        print("ERROR: ZED SDK (pyzed) not installed. This test requires a Jetson with ZED SDK.")
+        return
+
     # Init ZED
     cam = sl.Camera()
     init_params = sl.InitParameters()
@@ -23,6 +30,11 @@ def main():
     aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
     detector = cv2.aruco.ArucoDetector(aruco_dict, cv2.aruco.DetectorParameters())
 
+    import sys
+    import os
+    sys.path.append(os.path.abspath("../../"))
+    from mission_2030.common.mavlink_utils import arm_vehicle, wait_disarm, get_lidar_alt
+
     master = mavutil.mavlink_connection(DRONE_PORT, baud=BAUD_RATE)
     master.wait_heartbeat()
     print("Heartbeat OK!")
@@ -31,11 +43,23 @@ def main():
     master.mav.set_mode_send(master.target_system, mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED, mapping["GUIDED"])
     time.sleep(1)
 
-    print("Arming & Takeoff...")
-    master.mav.command_long_send(master.target_system, master.target_component, mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM, 0, 1, 0,0,0,0,0,0)
-    time.sleep(2)
-    master.mav.command_long_send(master.target_system, master.target_component, mavutil.mavlink.MAV_CMD_NAV_TAKEOFF, 0, 0, 0, 0, 0, 0, 0, TARGET_ALT)
-    time.sleep(5) # Mock takeoff timer
+    print("Arming...")
+    if not arm_vehicle(master):
+        return
+
+    print(f"Takeoff → {TARGET_ALT}m")
+    master.mav.command_long_send(master.target_system, master.target_component, 
+                                 mavutil.mavlink.MAV_CMD_NAV_TAKEOFF, 0, 0, 0, 0, 0, 0, 0, TARGET_ALT)
+    
+    # Wait for takeoff altitude
+    t0 = time.time()
+    while time.time() - t0 < 15:
+        alt = get_lidar_alt(master)
+        if alt and alt >= TARGET_ALT * 0.9:
+            print("Takeoff altitude reached ✓")
+            break
+        time.sleep(0.2)
+        
     print("Scanning ArUco...")
 
     found = False
@@ -56,21 +80,12 @@ def main():
 
     cam.close()
 
-    print("Landing...")
+    print("Switching to LAND...")
     master.mav.set_mode_send(master.target_system, mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED, mapping["LAND"])
 
-    landed = False
-    land_start = time.time()
-    while not landed and time.time() - land_start < 90:
-        msg = master.recv_match(type='HEARTBEAT', blocking=False)
-        if msg and msg.get_srcSystem() == master.target_system:
-            if not (msg.base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED):
-                print("Landed and Disarmed successfully.")
-                landed = True
-                break
-        time.sleep(0.1)
-    
-    if not landed:
+    if wait_disarm(master, 90):
+        print("Test 02 complete ✓")
+    else:
         print("Warning: landing timeout reached.")
 
 if __name__ == "__main__":

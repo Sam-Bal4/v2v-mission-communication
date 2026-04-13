@@ -17,6 +17,7 @@ from pymavlink import mavutil
 
 from mission_2030.radio.v2v_bridge import V2VBridge
 from mission_2030.common.logging_utils import setup_logger
+from mission_2030.common.mavlink_utils import arm_vehicle, wait_disarm, get_lidar_alt, is_vehicle_disarmed
 
 # ── config ─────────────────────────────────────────────────────────────────
 ESP32_PORT   = "/dev/ttyUSB0"
@@ -71,40 +72,10 @@ def change_mode(master, mode: str) -> bool:
     logger.info(f"Mode → {mode}")
     return True
 
-def arm(master) -> bool:
-    master.mav.command_long_send(
-        master.target_system, master.target_component,
-        mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM,
-        0, 1, 0, 0, 0, 0, 0, 0)
-    deadline = time.time() + 10
-    while time.time() < deadline:
-        hb = master.recv_match(type='HEARTBEAT', blocking=True, timeout=1.0)
-        if hb and hb.get_srcSystem() == master.target_system:
-            if hb.base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED:
-                logger.info("Armed ✓")
-                return True
-    logger.error("Arm timed out.")
-    return False
-
-def get_lidar_alt(master) -> float | None:
-    """Drain the message buffer and return the freshest DISTANCE_SENSOR reading."""
-    alt = None
-    while True:
-        msg = master.recv_match(type='DISTANCE_SENSOR', blocking=False)
-        if msg is None:
-            break
-        if msg.current_distance > 0:
-            alt = msg.current_distance / 100.0
-    return alt
-
-def is_disarmed(master) -> bool:
-    """Return True only if we receive a heartbeat from the Cube that shows disarmed."""
-    msg = master.recv_match(type='HEARTBEAT', blocking=False)
-    if msg and msg.get_srcSystem() == master.target_system:
-        return not bool(msg.base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED)
-    return False
-
 def pixel_to_angles(cx, cy, w, h):
+    angle_x = math.radians((cx - w / 2) / w * HFOV_DEG)
+    angle_y = math.radians((cy - h / 2) / h * VFOV_DEG)
+    return angle_x, angle_y
     angle_x = math.radians((cx - w / 2) / w * HFOV_DEG)
     angle_y = math.radians((cy - h / 2) / h * VFOV_DEG)
     return angle_x, angle_y
@@ -168,7 +139,7 @@ def main():
         # ─── Takeoff ──────────────────────────────────────────────────────
         if not change_mode(master, "GUIDED"):
             return
-        if not arm(master):
+        if not arm_vehicle(master):
             return
 
         master.mav.command_long_send(
@@ -241,7 +212,7 @@ def main():
                         )
 
             # Touchdown detection – ONLY trust the Cube's own heartbeat
-            if is_disarmed(master):
+            if is_vehicle_disarmed(master):
                 logger.info("Cube heartbeat: motors disarmed → touchdown confirmed ✓")
                 landed = True
                 break

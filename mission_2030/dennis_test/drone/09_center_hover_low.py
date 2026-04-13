@@ -1,8 +1,15 @@
 import time
 import math
 import cv2
-import pyzed.sl as sl
+try:
+    import pyzed.sl as sl
+except ImportError:
+    sl = None
 from pymavlink import mavutil
+import sys
+import os
+sys.path.append(os.path.abspath("../../"))
+from mission_2030.common.mavlink_utils import arm_vehicle, wait_disarm, get_lidar_alt
 
 def set_velocity_body(master, vx, vy, vz):
     master.mav.set_position_target_local_ned_send(
@@ -13,6 +20,10 @@ def set_velocity_body(master, vx, vy, vz):
 
 def main():
     print("--- Test 9: Center Tracking Hover (Low) ---")
+    if sl is None:
+        print("ERROR: ZED SDK (pyzed) not installed. This test requires a Jetson with ZED SDK.")
+        return
+
     cam = sl.Camera()
     params = sl.InitParameters(camera_resolution=sl.RESOLUTION.HD720)
     cam.open(params)
@@ -25,12 +36,22 @@ def main():
     master.wait_heartbeat()
     
     mapping = master.mode_mapping()
-    master.mav.set_mode_send(master.target_system, mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED, mapping["GUIDED"])
-    time.sleep(1)
-    master.mav.command_long_send(master.target_system, master.target_component, mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM, 0, 1, 0,0,0,0,0,0)
-    time.sleep(2)
-    master.mav.command_long_send(master.target_system, master.target_component, mavutil.mavlink.MAV_CMD_NAV_TAKEOFF, 0, 0, 0, 0, 0, 0, 0, 0.5) # LOWER ALTITUDE
-    time.sleep(5)
+    print("Arming...")
+    if not arm_vehicle(master):
+        return
+
+    print("Takeoff → 0.5m")
+    master.mav.command_long_send(master.target_system, master.target_component, 
+                                 mavutil.mavlink.MAV_CMD_NAV_TAKEOFF, 0, 0, 0, 0, 0, 0, 0, 0.5)
+    
+    # Wait for altitude
+    t_takeoff = time.time()
+    while time.time() - t_takeoff < 15:
+        alt = get_lidar_alt(master)
+        if alt and alt >= 0.5 * 0.9:
+            print("Altitude reached ✓")
+            break
+        time.sleep(0.2)
 
     print("Hovering and centering over ArUco extremely close (15 seconds)...")
     start_t = time.time()
@@ -67,6 +88,10 @@ def main():
 
     print("Landing...")
     master.mav.set_mode_send(master.target_system, mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED, mapping["LAND"])
+    if wait_disarm(master, 60):
+        print("Test successful ✓")
+    else:
+        print("Disarm timeout.")
 
 if __name__ == "__main__":
     main()

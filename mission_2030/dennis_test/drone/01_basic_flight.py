@@ -37,6 +37,8 @@ def request_streams(master):
         mavutil.mavlink.MAVLINK_MSG_ID_HEARTBEAT, int(1e6 / 5),
         0, 0, 0, 0, 0)
 
+from mission_2030.common.mavlink_utils import arm_vehicle, wait_disarm, get_lidar_alt
+
 def set_mode(master, mode: str):
     mapping = master.mode_mapping()
     master.mav.set_mode_send(
@@ -45,46 +47,6 @@ def set_mode(master, mode: str):
         mapping[mode])
     print(f"Mode → {mode}")
     time.sleep(0.5)
-
-def arm(master) -> bool:
-    master.mav.command_long_send(
-        master.target_system, master.target_component,
-        mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM,
-        0, 1, 0, 0, 0, 0, 0, 0)
-    deadline = time.time() + 10
-    while time.time() < deadline:
-        hb = master.recv_match(type='HEARTBEAT', blocking=True, timeout=1.0)
-        if hb and hb.get_srcSystem() == master.target_system:
-            if hb.base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED:
-                print("Armed ✓")
-                return True
-    print("ERROR: arm timed out.")
-    return False
-
-def get_alt(master) -> float:
-    alt = 0.0
-    while True:
-        msg = master.recv_match(type='DISTANCE_SENSOR', blocking=False)
-        if msg is None:
-            break
-        if msg.current_distance > 0:
-            alt = msg.current_distance / 100.0
-    return alt
-
-def wait_disarm(master, timeout_s: float):
-    print(f"Waiting for Cube disarm confirm (max {timeout_s:.0f} s)...")
-    deadline = time.time() + timeout_s
-    while time.time() < deadline and not _abort:
-        hb = master.recv_match(type='HEARTBEAT', blocking=True, timeout=2.0)
-        if hb and hb.get_srcSystem() == master.target_system:
-            if not (hb.base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED):
-                print("Cube heartbeat: motors DISARMED → touchdown confirmed ✓")
-                return True
-        alt = get_alt(master)
-        if alt > 0:
-            print(f"  Land alt: {alt:.2f} m", end="\r", flush=True)
-    print("\nWarning: disarm timeout reached.")
-    return False
 
 def main():
     print("=" * 50)

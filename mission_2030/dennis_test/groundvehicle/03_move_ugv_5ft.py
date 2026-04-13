@@ -11,6 +11,7 @@ from dronekit import connect, VehicleMode
 
 sys.path.append(os.path.abspath("../../"))
 from mission_2030.radio.v2v_bridge import V2VBridge
+from mission_2030.common.mavlink_utils import arm_vehicle_dronekit
 
 UGV_PORT = "/dev/ttyACM0"
 ESP32_PORT = "/dev/ttyUSB0"
@@ -26,9 +27,8 @@ def main():
     bridge.connect()
 
     vehicle = connect(UGV_PORT, wait_ready=True, baud=115200)
-    vehicle.mode = VehicleMode("GUIDED")
-    vehicle.armed = True
-    time.sleep(2)
+    if not arm_vehicle_dronekit(vehicle, mode_name="GUIDED"):
+        return
 
     print("Waiting for UAV Command logic (Phase 5)...")
     start_drive = False

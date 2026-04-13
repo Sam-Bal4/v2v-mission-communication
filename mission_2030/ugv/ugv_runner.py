@@ -17,6 +17,7 @@ if not hasattr(collections, 'MutableMapping'):
 from dronekit import connect, VehicleMode
 from mission_2030.radio.v2v_bridge import V2VBridge
 from mission_2030.common.logging_utils import setup_logger
+from mission_2030.common.mavlink_utils import arm_vehicle_dronekit
 from mission_2030.ugv.state_machine import UgvState
 from mission_2030.ugv.obstacle_avoidance import ObstacleAvoidance
 
@@ -49,27 +50,6 @@ def build_drive_msg(vehicle, throttle: float, yaw_rate_dps: float = 0.0):
         0.0, 0.0,
         math.radians(yaw_rate_dps),
         throttle)
-
-def arm_ugv(vehicle):
-    vehicle.parameters["ARMING_CHECK"] = 0
-    time.sleep(0.5)
-    if vehicle.mode.name == "HOLD":
-        vehicle.mode = VehicleMode("MANUAL")
-        t0 = time.time()
-        while vehicle.mode.name != "MANUAL" and time.time() - t0 < 5:
-            time.sleep(0.1)
-    vehicle.armed = True
-    t0 = time.time()
-    while not vehicle.armed and time.time() - t0 < 5:
-        time.sleep(0.1)
-    if not vehicle.armed:
-        raise RuntimeError("UGV failed to arm.")
-    logger.info("UGV armed ✓")
-    vehicle.mode = VehicleMode("GUIDED")
-    t0 = time.time()
-    while vehicle.mode.name != "GUIDED" and time.time() - t0 < 5:
-        time.sleep(0.1)
-    logger.info(f"UGV mode: {vehicle.mode.name}")
 
 def send_stop(vehicle, repeats=5):
     msg = build_drive_msg(vehicle, 0.0)
@@ -116,7 +96,9 @@ def main():
     touchdown_start_t = 0.0
 
     try:
-        arm_ugv(vehicle)
+        # Standard robust arming
+        if not arm_vehicle_dronekit(vehicle, mode_name="GUIDED"):
+            return
 
         while not _stop and state != UgvState.MISSION_COMPLETE:
             now = time.time()

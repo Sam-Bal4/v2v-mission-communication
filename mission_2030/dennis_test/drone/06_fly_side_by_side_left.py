@@ -1,5 +1,9 @@
 import time
 from pymavlink import mavutil
+import sys
+import os
+sys.path.append(os.path.abspath("../../"))
+from mission_2030.common.mavlink_utils import arm_vehicle, get_lidar_alt
 
 DRONE_PORT = "/dev/ttyACM0"
 BAUD_RATE = 57600
@@ -18,13 +22,22 @@ def main():
     master.wait_heartbeat()
     
     mapping = master.mode_mapping()
-    master.mav.set_mode_send(master.target_system, mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED, mapping["GUIDED"])
-    time.sleep(1)
+    print("Arming...")
+    if not arm_vehicle(master):
+        return
 
-    master.mav.command_long_send(master.target_system, master.target_component, mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM, 0, 1, 0,0,0,0,0,0)
-    time.sleep(2)
-    master.mav.command_long_send(master.target_system, master.target_component, mavutil.mavlink.MAV_CMD_NAV_TAKEOFF, 0, 0, 0, 0, 0, 0, 0, TARGET_ALT)
-    time.sleep(5)
+    print("Takeoff → 1.3m")
+    master.mav.command_long_send(master.target_system, master.target_component, 
+                                 mavutil.mavlink.MAV_CMD_NAV_TAKEOFF, 0, 0, 0, 0, 0, 0, 0, TARGET_ALT)
+    
+    # Wait for altitude
+    t_takeoff = time.time()
+    while time.time() - t_takeoff < 15:
+        alt = get_lidar_alt(master)
+        if alt and alt >= TARGET_ALT * 0.9:
+            print("Altitude reached ✓")
+            break
+        time.sleep(0.2)
 
     print("Pacing UGV LEFT (-Y) for 10 seconds")
     start_t = time.time()

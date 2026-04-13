@@ -1,7 +1,10 @@
 import time
 import math
 import cv2
-import pyzed.sl as sl
+try:
+    import pyzed.sl as sl
+except ImportError:
+    sl = None
 from pymavlink import mavutil
 import sys
 import os
@@ -9,11 +12,16 @@ import os
 sys.path.append(os.path.abspath("../../"))
 from mission_2030.radio.v2v_bridge import V2VBridge
 from mission_2030.radio.message_types import DestinationFound
+from mission_2030.common.mavlink_utils import arm_vehicle, wait_disarm, get_lidar_alt, is_vehicle_disarmed
 
 def main():
     print("--- Test 4: UAV Localize ArUco -> Send to UGV ---")
     bridge = V2VBridge("/dev/ttyUSB0")
     bridge.connect()
+
+    if sl is None:
+        print("ERROR: ZED SDK (pyzed) not installed. This test requires a Jetson with ZED SDK.")
+        return
 
     cam = sl.Camera()
     params = sl.InitParameters(camera_resolution=sl.RESOLUTION.HD720)
@@ -26,12 +34,22 @@ def main():
     master = mavutil.mavlink_connection("/dev/ttyACM0", baud=57600)
     master.wait_heartbeat()
     
-    master.mav.set_mode_send(master.target_system, mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED, master.mode_mapping()["GUIDED"])
-    time.sleep(1)
-    master.mav.command_long_send(master.target_system, master.target_component, mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM, 0, 1, 0,0,0,0,0,0)
-    time.sleep(2)
-    master.mav.command_long_send(master.target_system, master.target_component, mavutil.mavlink.MAV_CMD_NAV_TAKEOFF, 0, 0, 0, 0, 0, 0, 0, 1.3)
-    time.sleep(5)
+    print("Arming...")
+    if not arm_vehicle(master):
+        return
+
+    print("Takeoff → 1.3m")
+    master.mav.command_long_send(master.target_system, master.target_component, 
+                                 mavutil.mavlink.MAV_CMD_NAV_TAKEOFF, 0, 0, 0, 0, 0, 0, 0, 1.3)
+    
+    # Wait for altitude
+    t_takeoff = time.time()
+    while time.time() - t_takeoff < 15:
+        alt = get_lidar_alt(master)
+        if alt and alt >= 1.3 * 0.9:
+            print("Altitude reached ✓")
+            break
+        time.sleep(0.2)
 
     print("Scanning ArUco to send to UGV...")
     start_t = time.time()
@@ -66,13 +84,13 @@ def main():
     print("Pretending to wait for UGV to drive there (15 seconds)")
     time.sleep(15)
 
-    print("Landing...")
+    print("Switching to LAND...")
     master.mav.set_mode_send(master.target_system, mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED, master.mode_mapping()["LAND"])
-    while True:
-        msg = master.recv_match(type='HEARTBEAT', blocking=False)
-        if msg and msg.get_srcSystem() == master.target_system and not (msg.base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED):
-            break
-        time.sleep(0.1)
+    
+    if wait_disarm(master, 90):
+        print("Test 04 successful ✓")
+    else:
+        print("Landing timeout.")
         
     print("Done.")
     cam.close()

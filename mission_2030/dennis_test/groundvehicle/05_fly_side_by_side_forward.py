@@ -6,6 +6,10 @@ if not hasattr(collections, 'MutableMapping'):
     collections.MutableMapping = collections.abc.MutableMapping
 
 from dronekit import connect, VehicleMode
+import sys
+import os
+sys.path.append(os.path.abspath("../../"))
+from mission_2030.common.mavlink_utils import arm_vehicle_dronekit
 
 def build_attitude_msg(vehicle, throttle, yaw_rate=0.0):
     return vehicle.message_factory.set_attitude_target_encode(
@@ -15,8 +19,8 @@ def build_attitude_msg(vehicle, throttle, yaw_rate=0.0):
 def main():
     print("--- Test 5: Pacing Forward UGV ---")
     vehicle = connect("/dev/ttyACM0", wait_ready=True, baud=115200)
-    vehicle.mode = VehicleMode("GUIDED")
-    vehicle.armed = True
+    if not arm_vehicle_dronekit(vehicle, mode_name="GUIDED"):
+        return
     time.sleep(5) # Wait for drone takeoff
 
     print("Driving Forward for pacing test...")

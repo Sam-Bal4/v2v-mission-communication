@@ -5,9 +5,10 @@
 #include "freertos/task.h"
 #include "freertos/queue.h"
 
-// MAC address of the UAV bridge - Replace with actual UAV MAC
-// Default placeholder if unknown
-static uint8_t UAV_MAC[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+// ── USER CONFIG Start ─────────────────────────────────────────
+// MAC address of your UAV bridge. 
+static uint8_t TARGET_MAC[6] = {0xF8, 0xB3, 0xB7, 0x20, 0x25, 0xA8}; 
+// ── USER CONFIG End ───────────────────────────────────────────
 
 static const uint8_t SOF = 0xAA;
 
@@ -106,7 +107,7 @@ void radioTxTask(void* pv) {
         memcpy(espBuf + 2, pkt.payload, pkt.len);
         espBuf[2 + pkt.len] = checksum_xor(pkt.type, pkt.len, pkt.payload);
         
-        esp_now_send(UAV_MAC, espBuf, 3 + pkt.len);
+        esp_now_send(TARGET_MAC, espBuf, 3 + pkt.len);
     }
   }
 }
@@ -124,7 +125,7 @@ void setup() {
   esp_now_register_recv_cb(onDataRecv);
 
   esp_now_peer_info_t peer = {};
-  memcpy(peer.peer_addr, UAV_MAC, 6);
+  memcpy(peer.peer_addr, TARGET_MAC, 6);
   peer.channel = 0; peer.encrypt = false;
   esp_now_add_peer(&peer);
 

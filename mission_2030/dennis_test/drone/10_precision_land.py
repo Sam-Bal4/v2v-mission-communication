@@ -1,11 +1,22 @@
 import time
 import math
 import cv2
-import pyzed.sl as sl
+try:
+    import pyzed.sl as sl
+except ImportError:
+    sl = None
 from pymavlink import mavutil
+import sys
+import os
+sys.path.append(os.path.abspath("../../"))
+from mission_2030.common.mavlink_utils import arm_vehicle, wait_disarm, get_lidar_alt, is_vehicle_disarmed
 
 def main():
     print("--- Test 10: Precision Touchdown ---")
+    if sl is None:
+        print("ERROR: ZED SDK (pyzed) not installed. This test requires a Jetson with ZED SDK.")
+        return
+
     cam = sl.Camera()
     params = sl.InitParameters(camera_resolution=sl.RESOLUTION.HD720)
     cam.open(params)
@@ -18,12 +29,22 @@ def main():
     master.wait_heartbeat()
     
     mapping = master.mode_mapping()
-    master.mav.set_mode_send(master.target_system, mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED, mapping["GUIDED"])
-    time.sleep(1)
-    master.mav.command_long_send(master.target_system, master.target_component, mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM, 0, 1, 0,0,0,0,0,0)
-    time.sleep(2)
-    master.mav.command_long_send(master.target_system, master.target_component, mavutil.mavlink.MAV_CMD_NAV_TAKEOFF, 0, 0, 0, 0, 0, 0, 0, 1.3)
-    time.sleep(5)
+    print("Arming...")
+    if not arm_vehicle(master):
+        return
+
+    print("Takeoff → 1.3m")
+    master.mav.command_long_send(master.target_system, master.target_component, 
+                                 mavutil.mavlink.MAV_CMD_NAV_TAKEOFF, 0, 0, 0, 0, 0, 0, 0, 1.3)
+    
+    # Wait for altitude
+    t_takeoff = time.time()
+    while time.time() - t_takeoff < 15:
+        alt = get_lidar_alt(master)
+        if alt and alt >= 1.3 * 0.9:
+            print("Altitude reached ✓")
+            break
+        time.sleep(0.2)
 
     print("Switching to LAND mode and streaming TARGET_ANGLES based on ZED physical depth...")
     master.mav.set_mode_send(master.target_system, mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED, mapping["LAND"])
@@ -32,13 +53,11 @@ def main():
     landed = False
 
     while not landed and time.time() - start_t < 60:
-        # Check landing status instantly using the filtered source checker!
-        msg = master.recv_match(type='HEARTBEAT', blocking=False)
-        if msg and msg.get_srcSystem() == master.target_system:
-            if not (msg.base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED):
-                print("Landed and Disarmed successfully.")
-                landed = True
-                break
+        # Check landing status instantly!
+        if is_vehicle_disarmed(master):
+            print("Landed and Disarmed successfully ✓")
+            landed = True
+            break
 
         if cam.grab() == sl.ERROR_CODE.SUCCESS:
             cam.retrieve_image(zed_img, sl.VIEW.LEFT)
