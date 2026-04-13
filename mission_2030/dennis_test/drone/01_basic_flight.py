@@ -61,7 +61,7 @@ def main():
 
     try:
         set_mode(master, "GUIDED")
-        if not arm(master):
+        if not arm_vehicle(master):
             return
 
         print(f"Takeoff → {TARGET_ALT} m")
@@ -72,7 +72,7 @@ def main():
 
         t0 = time.time()
         while time.time() - t0 < 20 and not _abort:
-            if get_alt(master) >= TARGET_ALT * 0.90:
+            if get_lidar_alt(master) >= TARGET_ALT * 0.90:
                 print(f"\nTarget altitude reached ✓")
                 break
             time.sleep(0.2)
