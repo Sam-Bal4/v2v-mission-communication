@@ -13,6 +13,7 @@ sys.path.append(os.path.abspath("../../"))
 from mission_2030.radio.v2v_bridge import V2VBridge
 from mission_2030.radio.message_types import DestinationFound
 from mission_2030.common.mavlink_utils import arm_vehicle, wait_disarm, get_lidar_alt, is_vehicle_disarmed
+from mission_2030.common.vision_utils import ArucoDetectorShim
 
 def main():
     print("--- Test 4: UAV Localize ArUco -> Send to UGV ---")
@@ -29,7 +30,7 @@ def main():
     zed_img = sl.Mat()
     point_cloud = sl.Mat()
     
-    detector = cv2.aruco.ArucoDetector(cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50))
+    detector = ArucoDetectorShim(cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50))
 
     master = mavutil.mavlink_connection("/dev/ttyACM0", baud=57600)
     master.wait_heartbeat()

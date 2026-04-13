@@ -28,12 +28,13 @@ def main():
 
     # ArUco Dict
     aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
-    detector = cv2.aruco.ArucoDetector(aruco_dict, cv2.aruco.DetectorParameters())
+    detector = ArucoDetectorShim(aruco_dict, cv2.aruco.DetectorParameters())
 
     import sys
     import os
     sys.path.append(os.path.abspath("../../"))
     from mission_2030.common.mavlink_utils import arm_vehicle, wait_disarm, get_lidar_alt
+    from mission_2030.common.vision_utils import ArucoDetectorShim
 
     master = mavutil.mavlink_connection(DRONE_PORT, baud=BAUD_RATE)
     master.wait_heartbeat()

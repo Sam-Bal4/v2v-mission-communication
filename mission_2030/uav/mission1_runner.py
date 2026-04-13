@@ -18,6 +18,7 @@ from pymavlink import mavutil
 from mission_2030.radio.v2v_bridge import V2VBridge
 from mission_2030.common.logging_utils import setup_logger
 from mission_2030.common.mavlink_utils import arm_vehicle, wait_disarm, get_lidar_alt, is_vehicle_disarmed
+from mission_2030.common.vision_utils import ArucoDetectorShim
 
 # ── config ─────────────────────────────────────────────────────────────────
 ESP32_PORT   = "/dev/ttyUSB0"
@@ -103,7 +104,7 @@ def main():
     # --- Camera ---
     aruco_dict   = cv2.aruco.getPredefinedDictionary(ARUCO_DICT)
     aruco_params = cv2.aruco.DetectorParameters()
-    detector     = cv2.aruco.ArucoDetector(aruco_dict, aruco_params)
+    detector     = ArucoDetectorShim(aruco_dict, aruco_params)
     cam = cv2.VideoCapture(0)
     if not cam.isOpened():
         logger.error("Camera could not be opened. Aborting.")
