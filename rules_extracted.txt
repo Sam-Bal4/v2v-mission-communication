@@ -1,0 +1,1778 @@
+For Authorized Use Only  
+
+‘2526 Raytheon Autonomous Vehicle 
+Competition  
+Rules 
+Fall 2025 – Spring 2026 
+
+This document does not contain technology or technical data controlled under either the U.S. 
+International Traffic in Arms Regulations or the U.S. Export Administration Regulations. 
+
+1                                                                    Raytheon Company – Unrestricted Content 
+
+For Authorized Use Only 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+For Authorized Use Only  
+
+TABLE OF CONTENTS 
+TABLE OF CONTENTS ................................................................................................................................... 2 
+
+1 
+
+INTRODUCTION .................................................................................................................................... 4 
+
+1.1 
+
+Mission & Vision .......................................................................................................................... 4 
+
+2 
+
+COMPETITION ...................................................................................................................................... 6 
+
+2.1 
+
+Introduction ................................................................................................................................. 6 
+
+Theme: “Operation Touchdown” -Autonomous Navigation, Target Identification, 
+
+2.2 
+Collaborative Autonomy ........................................................................................................................... 6 
+
+2.3 
+
+2.4 
+
+2.5 
+
+2.6 
+
+2.7 
+
+2.8 
+
+2.9 
+
+Real World Application ................................................................................................................ 7 
+
+Challenge 1 .................................................................................................................................. 8 
+
+Challenge 2 .................................................................................................................................. 9 
+
+Challenge 3 ................................................................................................................................ 10 
+
+Obstacles ................................................................................................................................... 11 
+
+Destination Arrival Requirements ............................................................................................. 11 
+
+Project Management ................................................................................................................. 12 
+
+3 
+
+RULES .................................................................................................................................................. 13 
+
+3.1 
+
+General Rules ............................................................................................................................. 13 
+
+3.1.1 
+
+3.1.2 
+
+3.1.3 
+
+3.1.4 
+
+3.2 
+
+3.3 
+
+3.4 
+
+3.4.1 
+
+3.4.2 
+
+3.4.3 
+
+3.4.4 
+
+AV FAA Compliance ............................................................................................................. 13 
+
+Budget ................................................................................................................................. 13 
+
+System Operation ............................................................................................................... 13 
+
+Field requirements .............................................................................................................. 14 
+
+BrainChip ................................................................................................................................... 14 
+
+Deep Perception ........................................................................................................................ 14 
+
+Unmanned Vehicle Requirements ............................................................................................. 15 
+
+UGV Requirements.............................................................................................................. 15 
+
+UAV Requirements .............................................................................................................. 15 
+
+Autonomy............................................................................................................................ 15 
+
+RF Spectrum Utilization ....................................................................................................... 15 
+
+3.5 
+
+ ArUco Marker ........................................................................................................................... 17 
+
+3.5.1 
+
+ArUco Marker ...................................................................................................................... 17 
+
+3.6 
+
+3.7 
+
+Scoring ....................................................................................................................................... 17 
+
+Healthy Tips ............................................................................................................................... 17 
+
+4 
+
+SCHEDULE ........................................................................................................................................... 18 
+
+2                                                                    Raytheon Company – Unrestricted Content 
+
+For Authorized Use Only 
+
+For Authorized Use Only  
+
+4.1 
+
+Milestones ................................................................................................................................. 19 
+
+4.1.1 
+
+4.1.2 
+
+4.1.3 
+
+Semester Based Milestones Template / Notional Schedule ............................................... 19 
+
+Quarter Base Milestone Template / Notional Schedule ..................................................... 20 
+
+Competition Event Schedules by Region ............................................................................ 20 
+
+5 
+
+DESIGN AND TEST GUIDENCE ............................................................................................................. 21 
+
+5.1 
+
+5.2 
+
+Requirements Matrix ................................................................................................................. 23 
+
+Test Documentation .................................................................................................................. 23 
+
+6 
+
+ROLES AND RESPONSIBILITIES .......................................................................................................... 24 
+
+6.1 
+
+6.2 
+
+6.3 
+
+6.4 
+
+6.5 
+
+Project Mentor .......................................................................................................................... 24 
+
+Judges ........................................................................................................................................ 24 
+
+Faculty Advisor .......................................................................................................................... 24 
+
+Project Manager ........................................................................................................................ 24 
+
+Student Teams ........................................................................................................................... 24 
+
+7 
+
+8 
+
+AWARDS AND EVALUATION .............................................................................................................. 25 
+
+Appendix A – Internet Access (optional) ............................................................................................ 28 
+
+8.1 
+
+8.2 
+
+Option 1: Local “Guest” network to "base station area" .......................................................... 28 
+
+Option 2: "You're on your own" ................................................................................................ 28 
+
+9 
+
+Appendix B – Logging .......................................................................................................................... 29 
+
+10 
+
+11 
+
+12 
+
+13 
+
+14 
+
+Appendix C – Q&A .......................................................................................................................... 30 
+
+Appendix D FAA Regulations.......................................................................................................... 31 
+
+Appendix E Sky Labs Research ....................................................................................................... 32 
+
+Appendix F Discord ........................................................................................................................ 33 
+
+Appendix G Points of Contact ........................................................................................................ 34 
+
+`Raytheon Technologies Points of Contact ............................................................................................. 34 
+
+14.1  Mentors ..................................................................................................................................... 34 
+
+14.1.1 
+
+South Region ....................................................................................................................... 34 
+
+3                                                                    Raytheon Company – Unrestricted Content 
+
+For Authorized Use Only 
+
+ 
+For Authorized Use Only  
+
+1  INTRODUCTION 
+1.1  Mission & Vision 
+Welcome to the Annual Raytheon Autonomous Vehicle Competition!   
+
+Raytheon’s mission is to partner with universities across 4 different regions to develop top 
+talent, strengthen university relationships, and enhance the Raytheon mission. 
+
+The Raytheon Autonomous Vehicle Competition (AVC) is an event sponsored by Raytheon, an 
+RTX business. The purpose of the AVC is to provide students an opportunity to solve existing 
+real-world problems by using their creativity, innovation, and team-solving skills to research, 
+develop, integrate, and test an Unmanned Vehicle system. 
+
+This team-oriented effort is an opportunity for university students to engage and put into 
+practice their project-management and problem-solving skills on open-ended problems in a 
+professional, industry work environment. For the corporate sponsor, it provides the 
+opportunity to evaluate and assess top graduates, promote corporate branding, and explore 
+the latest technologies. 
+
+4                                                                    Raytheon Company – Unrestricted Content 
+
+For Authorized Use Only 
+
+ 
+      
+ 
+ 
+For Authorized Use Only  
+
+The Raytheon Autonomous Vehicle Competition will take place in the following regions with the 
+respective Universities: 
+
+6.  Southern Methodist University 
+7.  Jackson State University 
+8.  University of Mississippi 
+9.  Alabama A&M 
+10. Prairie View A&M  
+
+South Region 
+
+1.  The University of Texas at Arlington  
+2.  The University of Texas at Dallas   
+3.  The University of Texas at El Paso       
+4.  The University of Texas at Austin     
+5.  Texas A&M University 
+
+Puerto Rico Region  
+
+1.  University of Puerto Rico at Mayaguez 
+2.  Polytechnic University of Puerto Rico 
+3.  Interamerican University of Puerto Rico 
+4.  Universidad Ana G. Mendez – Gurabo 
+
+West Coast Region 
+
+1.  California Polytechnic State University, San Luis Obispo 
+2.  California State, Long Beach 
+3.  University of California, Santa Barbara 
+4.  California State University, Fullerton 
+
+East Coast Region  
+
+1.  George Washington University 
+2.  Virginia Polytechnic Institute and State University  
+3.  Howard University 
+4.  George Mason University 
+5.  University of South Florida 
+
+The direct participants of the AVC will be the assigned students, while University faculty and 
+industry mentors act as project guidance / “coach” and do not work on the project itself. Judges 
+will observe the final competition and grade based on performance and requirements met. 
+Judges will not be student mentors. 
+
+Note: If there is need for region specific guidance, rule clarification, challenge modifications, 
+please refer to the Region-Specific Attachment accompanied by this ROE to be released at a 
+future date as needed.   
+
+5                                                                    Raytheon Company – Unrestricted Content 
+
+For Authorized Use Only 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+For Authorized Use Only  
+
+2  COMPETITION 
+2.1  Introduction 
+The Raytheon AVC challenges students with the design, implementation, integration, and test 
+of complex system of systems. This requires developing skills in electromechanical design, 
+embedded development, sensor systems, wireless communications, computer vision, cloud & 
+edge processing, artificial intelligence, autonomous & avoidance algorithms, command and 
+control systems, integration & test planning, and advanced manufacturing. Competition day is 
+the team’s opportunity to put all your skills and labor to the test.   
+
+The competition day is intended to be a fun, challenging, and high energy event.  The goal of 
+the event is to test your project and experience the satisfaction of having taken a system from a 
+blank sheet of paper to a real-world implementation competing against your peers. The 
+accomplishment of all the hard work throughout the year is an immense reward.    
+
+Note: Gameday decisions may be made to accommodate the competition’s goals.  Flexibility is 
+key! 
+
+2.2  Theme: “Operation Touchdown” -Autonomous Navigation, Target Identification, 
+
+Collaborative Autonomy 
+
+The AVC scenario for the ‘2526 season is dubbed “Operation Touchdown”!  Scenarios will 
+include at least 2 vehicles provided by each team: 
+
+•  1 Unmanned Aerial Vehicle (UAV)  
+•  1 Unmanned Ground Vehicle (UGV)  
+
+The UAV will autonomously launch and scout the field containing 1 destination ArUco marker 
+and several stationary real-life obstacles. The UAV will directly communicate the location of the 
+destination to the UGV without using a ground station. The UGV will begin its route to the 
+destination avoiding the obstacles and while the UGV is travelling, the UAV will land on the UGV 
+system and continue with the UGV system to the destination. The judges will randomly arrange 
+the ArUco marker and obstacles on the field for Competition Day. 
+
+In all scenarios, the UAV and UGV are to behave fully autonomously. 
+
+6                                                                    Raytheon Company – Unrestricted Content 
+
+For Authorized Use Only 
+
+ 
+ 
+ 
+  
+ 
+ 
+ 
+ 
+For Authorized Use Only  
+
+2.3  Real World Application 
+The Mars 2020 mission was a groundbreaking technology demonstration of coordination 
+between a UAV (Ingenuity,) and UGV, (Perseverance) on another planet. The success of 
+Ingenuity paves the way for future aerial exploration of Mars and other planetary bodies, 
+enhancing our ability to scout terrain, identify areas of interest, and support future human 
+missions.  
+
+The collaborative relationship demonstrated on Mars is also applicable on Earth where UAVs 
+could scout the environment and aid ground vehicles in executing missions from emergency 
+responses in a disaster to search and rescue and delivery of supplies in remote areas.  
+
+Drones have changed the defense industry, allowing for remote missions that keep our troops 
+safe. They currently have several applications in the field and as automation technologies grow 
+the opportunities to advance the use-case of drones increases too. This year’s theme, 
+Operation Touchdown, immerses students in a challenge engineers face across the defense 
+industry.  
+
+The 2026 Raytheon AVC seeks to have students create their own collaborative systems where 
+UAV scouts for and augments a ground system’s exploration and navigation of an area. 
+
+7                                                                    Raytheon Company – Unrestricted Content 
+
+For Authorized Use Only 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+For Authorized Use Only  
+
+2.4  Challenge 1 
+
+The UAV shall autonomously take off from the UGV. After the UAV has launched, the UGV shall 
+begin moving at a minimum speed of .2 mph in a straight line across the field. The UAV shall 
+meet a minimum flight time of 5 seconds at minimum altitude of 4 feet. The UAV must safely 
+land on the moving UGV system within 7 min. Once the UAV has landed on the UGV system, it 
+must continue traveling with the UGV system for thirty seconds without separating. Time stops 
+once UAV has traveled with the moving UGV system for thirty seconds. Each school’s system 
+will have an opportunity to execute this challenge. 
+
+UAV autonomously launches, UGV system begins traveling in straight line 
+
+UAV autonomously lands on the moving UGV system and continues traveling for thirty 
+seconds. 
+
+The following picture is an example of a school UAV (red) searching for the UGV system and 
+successfully landing within 7 minutes. 
+
+System at time = 20 seconds 
+
+System at time = 60 seconds 
+
+0 
+
+System at time = 80 seconds 
+
+8                                                                    Raytheon Company – Unrestricted Content 
+
+For Authorized Use Only 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+For Authorized Use Only  
+
+2.5  Challenge 2 
+
+The judge will randomly place an ArUco marker on the field. The UAV shall autonomously take 
+off from the UGV. After the UAV has launched, the UAV will Identify the destination via ArUco 
+marker and communicate this directly back to the UGV without a ground station. The UGV will 
+begin moving to the destination at a minimum speed of .2 mph. The UAV shall meet a minimum 
+flight time of 5 seconds at minimum altitude of 4 feet. The UAV must safely land on the moving 
+UGV system within 10 min from the first UGV movement. Once the UAV has landed on the UGV 
+system, it must continue traveling with the UGV system for 10 seconds without separating. The 
+UGV system shall stop once it reaches the destination ArUco marker. Time stops once the 
+system has stopped moving. Each school’s system will have an opportunity to execute this 
+challenge. 
+
+UAV autonomously launched and identifies the ArUco marker’s location 
+
+UGV starts traveling to the destination and the UAV lands on moving UGV system 
+
+Entire System arrives and stops at the destination. 
+
+The following picture is an example of the challenge. The UAV (red) autonomously searched for 
+the ArUco marker location, communicated the destination location to the UGV to which the 
+UGV started moving towards. The UAV will land on the UGV system while it is moving and will 
+arrive at the destination.  
+
+9                                                                    Raytheon Company – Unrestricted Content 
+
+For Authorized Use Only 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+For Authorized Use Only  
+
+2.6  Challenge 3 
+
+The judge will randomly place an ArUco marker on the field. The UAV shall autonomously take 
+off from the UGV. After the UAV has launched, the UAV will identify the destination via ArUco 
+marker and communicate this directly back to the UGV without a ground station. The UGV will 
+begin moving to the destination at a minimum speed of .2 mph around real-life stationary 
+obstacles. The UAV shall meet a minimum flight time of 5 seconds at minimum altitude of 4 
+feet. The UAV must safely land on the moving UGV system within 10 min from the first UGV 
+movement. Once the UAV has landed on the UGV system, it must continue with the UGV 
+system for 10 seconds without separating. The UGV system shall stop once it reaches the 
+destination. Time stops once the system has stopped moving. Each school’s system will have an 
+opportunity to execute this challenge. 
+
+UAV autonomously launched and identifies the ArUco marker’s location 
+
+UGV starts travel around obstacles to the destination and the UAV lands on moving UGV 
+system 
+
+Entire System arrives and stops at the destination. 
+
+The following picture is an example of the challenge. The UAV (red) autonomously searched for 
+the ArUco marker location, communicated the destination location to the UGV to which the 
+UGV started moving towards. The UAV will land on the UGV system while it is moving and will 
+arrive at the destination.  All Obstacles were avoided. 
+
+10                                                                    Raytheon Company – Unrestricted Content 
+
+For Authorized Use Only 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+For Authorized Use Only  
+
+2.7  Obstacles 
+Obstacles in Challenge 3 will be three dimmensional objects the UGV can not drive over. These will 
+consist only of: small, medium or large sized cardboard boxes, traffic cones, and buckets. There will be 
+an unknown about of obstacles present but the minimum spacing between the objectacles will be 5 
+feet. 
+
+2.8  Destination Arrival Requirements 
+The entire UAV/UGV system is required to arrive at the destination. The destination is defined as the 
+space within a 5-foot radius circle from the center of the designated ArUco marker. 
+
+ Does NOT count as arriving at the destination 
+
+        DOES count as arriving at the destination 
+
+                                            5’                                                                                                            5’ 
+
+11                                                                    Raytheon Company – Unrestricted Content 
+
+For Authorized Use Only 
+
+ 
+ 
+                                                       
+                                                     
+ 
+ 
+ 
+For Authorized Use Only  
+
+2.9  Project Management 
+Students are expected to manage their project using industry best practices.  Students are responsible 
+for project management training on their own time (e.g., Agile methodologies, DevSecOps, etc.).  The 
+university is expected to provide project management resources (e.g., MS Project, TEAMS, Jira, GitHub, 
+MS Office, etc.) 
+
+Note: What has worked well in the past is for the teams to use a collaboration platform (e.g., TEAMS, 
+Discord, Slack, etc.) and invite the mentor to that platform. 
+
+The Raytheon mentor will attend periodic team meetings.  The meetings typically meet weekly, and last 
+about 1 to 2 hours per week. 
+
+12                                                                    Raytheon Company – Unrestricted Content 
+
+For Authorized Use Only 
+
+For Authorized Use Only  
+
+3  RULES 
+3.1  General Rules 
+3.1.1  AV FAA Compliance 
+
+Participating teams will follow the Federal Aviation Administration (FAA) UAV Requirements.  
+The UAS field is always evolving, so please refer to the FAA for the latest specifications and 
+regulations. 
+
+For FAA references, please see Appendix E 
+
+• 
+
+ Participating teams will follow the Federal Aviation Administration (FAA) UAV Requirements.  
+The UAS field is always evolving, so please refer to the FAA for the latest specifications and 
+regulations.  
+
+•  For FAA references, please see Appendix D  
+•  Safety is the highest priority for the participants. No careless or reckless operations and no 
+
+carriage of hazardous materials.    
+
+•  Each university will be responsible for providing an area (i.e., field) for students to access to 
+
+perform development and testing. This location will conform to the rules and regulations of the 
+educational institution and FAA flight restrictions.   
+
+•  AVC aircraft will be limited to flying within an approved geofence or an approved drone 
+
+enclosure.   
+
+•  Participants will not allow UAV flight over any persons not participating in the operation.   
+•  Pre-flight inspection will be performed prior to the AVC to verify UAV is safe to fly and meets all 
+
+rules and regulations.  
+
+•  At least one student will need to become an FAA Certified UAV Pilot prior to any flight tests. 
+
+3.1.2  Budget 
+
+•  Each university will have a budget of $5,000 USD to use on this project. This budget can be used 
+
+for hardware and software expenses to help the students to develop their prototype. 
+
+•  Procurement of hardware and software will be done via the university procurement process. 
+
+o  Students will be asked to provide a budget breakdown prior to the AVC 
+
+•  The use of open-source hardware and software is recommended. 
+•  Schools can use resources from previous competition years to help prototype and test their 
+solutions.  Note: there is risk in using old platforms without proper background knowledge. 
+
+o  The full cost of the drones executing at the AVC must be <= $5K. The Bill of Materials 
+
+(BOM) for the cost of the Autonomous Vehicles’ components competing can be priced 
+with depreciation. 
+
+3.1.3  System Operation 
+
+•  The system of systems shall be capable of navigating around three-dimensional, real-life 
+
+obstacles on the competition field and arrive at the prescribed destination  
+
+•  The system shall be composed of a minimum of 1 UGV and 1 UAV  
+
+13                                                                    Raytheon Company – Unrestricted Content 
+
+For Authorized Use Only 
+
+ 
+ 
+For Authorized Use Only  
+
+3.1.4  Field requirements 
+
+•  15 yards wide x 15 yard long (subject to change by venue)  
+•  Consists of either a turf field or predominantly grass covered mowed <6” in height. This is 
+
+dependent on region. 
+
+•  Topography varied: May include slopes, holes, rocks, and differing vegetation.   
+
+3.2  BrainChip 
+BrainChip offers a Neuromorphic approach to AI compute, as their compute methods are inspired by the 
+human brain (highly efficient compute) and utilize at memory-based compute. BrainChip's technology 
+offers a paradigm shift by allowing AI compute typically implemented on server farms in the "Cloud", to 
+now be implemented on a battery on the true edge.  
+
+Teams will be required to incorporate the provided BrainChips into their system on either the UAV or 
+UGV. 
+
+Resources found here: 
+
+(https://doc.brainchipinc.com/examples/general/plot_5_voc_yolo_detection.html#sphx-glr-examples-
+general-plot-5-voc-yolo-detection-py)Akida vision edge learning — Akida Examples documentation 
+(https://doc.brainchipinc.com/examples/edge/plot_0_edge_learning_vision.html#sphx-glr-examples-
+edge-plot-0-edge-learning-vision-py) Here is the latest Rasp PI user guide:  Akida-
+RaspberryPi_EvalKit_UG_111b (https://brainchip.com/wp-content/uploads/2022/06/Akida-
+RaspberryPi_EvalKit_UG_111b.pdf) 
+
+3.3  Deep Perception 
+Deep Perception, a BrainChip Solutions Partner, specializes in building end-to-end edge and hybrid AI 
+solutions that leverage this neuromorphic technology. Deep Perception develops complete systems 
+from model development and media pipeline engineering to third-party integrations, delivering 
+production-ready solutions that bring AI compute to the edge. 
+
+14                                                                    Raytheon Company – Unrestricted Content 
+
+For Authorized Use Only 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+For Authorized Use Only  
+
+3.4  Unmanned Vehicle Requirements 
+Students can conduct a trade study on what hardware and software configuration are necessary to 
+complete the assigned tasks and will have to assess with their mentors the best path forward. Items to 
+consider are weight, speed, complexity, location of components, battery life, open-source vs custom 
+design, etc.  Note: This is not an exhaustive list of requirements. Test Documentation and Requirements 
+Matrix should list other items inherently necessary to meet the challenge objectives.  
+3.4.1  UGV Requirements 
+
+•  Shall autonomously navigate terrain within field requirements.  
+•  Shall provide ability for launch and landing of UAV.  
+•  Shall be capable of traversing terrain loaded with UAV.  
+•  Shall provide a means of real-time verification of speed.  
+•  Shall employ a kill switch to terminate autonomous operation and halt motion in <3 seconds.  
+•  Shall not employ GPS. 
+
+3.4.2  UAV Requirements 
+
+•  Shall comply with all FAA regulations, including but not limited to:  
+
+o  Each UAV shall weigh less than 55 lbs.  
+o  All UAVs shall be registered for a Remote ID.  
+
+•  Shall have propeller guards installed.  
+•  Shall implement a GPS based geofence to maintain control only, GPS is not allowed for any 
+
+other application (navigation, target location identification, etc.) 
+
+•  Shall implement a kill switch that overrides programmed or autonomous operation 
+•  Shall autonomously take off from UGV  
+•  Shall identify ArUco marker location as input to pathing UGV to destination  
+•  Shall be capable of autonomously landing on/in a moving UGV. 
+
+3.4.3  Autonomy 
+Based on the Challenge descriptions above, the Autonomous Vehicles shall autonomously complete 
+their tasks and be programmed with flexibility for items such as: 
+
+•  Start and End location of challenge. 
+•  Flight operational boundaries  
+•  Change in the field dimensions 
+•  Duration of challenge 
+•  Destination target selection (The Judges can select any ArUco Marker ID 0-4) 
+
+3.4.4  RF Spectrum Utilization  
+
+•  Each UAV and UGV shall comply with FCC requirements for RF emissions.  
+•  Each Team shall provide a preliminary spectrum management plan to their Raytheon mentor by 
+
+January 31st, 2026, to include:  
+o  Frequency / channel  
+o  Bandwidth  
+
+15                                                                    Raytheon Company – Unrestricted Content 
+
+For Authorized Use Only 
+
+ 
+ 
+For Authorized Use Only  
+
+o  Power  
+o  Contingency plan for cross-team interference 
+
+16                                                                    Raytheon Company – Unrestricted Content 
+
+For Authorized Use Only 
+
+  
+ 
+ 
+For Authorized Use Only  
+
+3.5   ArUco Marker 
+
+3.5.1  ArUco Marker 
+The ArUco Marker design (available via opensource) can be created via a website found here: ArUco 
+Marker. The ArUco marker is 6x6 grid, 1 ft by 1 ft square facing-up horizontal to the field. The 12”x12” 
+total size is made up of a 10” x 10” marker pattern in the middle with a 1” white border on all four sides 
+of the black marker pattern. Each Team is responsible for producing and bringing their own set of ArUco 
+markers to Competition Day. ArUco ID’s 0-4 may be used. The marker itself cannot contain internal 
+homing beacons to communicate with other vehicles (i.e., Bluetooth, Wi-Fi, or GPS). This is done to 
+simulate a no communications environment. 
+
+                                                                                         10”    
+
+                                         10”                                                                      12” 
+
+                                                                                              12” 
+
+3.6  Scoring  
+Referenced the Scoring Attachment for scoring specifics. 
+
+Note: Only after all challenge objectives have been met will time be used as a tie breaker. If necessary 
+the Judges may factor in accuracy to the destination as well. If the system does not reach the 
+destination, the UAV does not safely land on a moving UGV, if obstacles were hit, etc, the team will not 
+receive points for meeting the objective and will not be eligible to beat teams that did meet the 
+challenge objective. 
+
+3.7  Healthy Tips 
+Obtain training for: 
+
+o  Project Management (PM) 
+o  Agile (entire Team) 
+o  SRR, SDR, CDR, TRR 
+o  Machine Learning 
+o 
+o  UAV Pilot 
+
+Image Recognition  
+
+Order your Team T-Shirt Early!!! 
+
+17                                                                    Raytheon Company – Unrestricted Content 
+
+For Authorized Use Only 
+
+ 
+                                                                                            
+ 
+ 
+ 
+       
+ 
+ 
+ 
+ 
+For Authorized Use Only  
+
+4  SCHEDULE 
+
+The universities will compete in their respective region. The timeline for the competition will 
+differ from Region to Region.  Each schedule will be agreed upon per region. 
+
+Students will follow best practice development methodologies and meet with university and 
+corporate mentors frequently (e.g., weekly) to ensure project progress. 
+
+At a high level, students will: 
+
+1. Conduct studies on existing state of the art solutions and 
+work with stakeholders to gather all specifications and 
+requirements for the project. 
+
+2. Generate project artifacts based on school requirements 
+
+(e.g. proposals, design documentation, final presentations, 
+etc.). 
+
+3. Design, Prototype, Implement, Test, and Demonstrate 
+
+solution. 
+
+4. Compete in the 2025-2026 Regional Raytheon Autonomous 
+
+Vehicle Competition  
+
+5. Prepare all classroom documentation requirements (i.e., 
+
+poster, presentation, final report) 
+
+18                                                                    Raytheon Company – Unrestricted Content 
+
+For Authorized Use Only 
+
+ 
+ 
+ 
+ 
+For Authorized Use Only  
+
+4.1  Milestones  
+4.1.1  Semester Based Milestones Template / Notional Schedule  
+Note: this is a template, and not *required* for the project. It is meant to be a reference for building a schedule. 
+
+Figure 1 Semester Based Notional Milestone Template Set 
+
+Date 
+August - Project Kickoff (August) 
+
+September - Project Planning (e.g., System 
+Requirements Review) 
+October 
+
+December 
+
+Spring Demos (e.g., Test Readiness Reviews) 
+
+Milestones 
+Requirements Review & Clarification / Q&A by students 
+over the Rules of Engagement. 
+
+Configuration Management 
+Project Logistics 
+Project Proposal & Presentation (e.g., System Design 
+Review) 
+Order Parts 
+Prototype creation 
+
+a.  Mid-Year report is due (e.g., Critical 
+
+Design Review) 
+
+i.  template can be provided if 
+
+Integration and Test 
+
+needed. 
+b.  Prototype Demonstration(s) 
+a. 
+b.  AVC Demo 1 
+c.  AVC Demo 2 
+d.  Final Testing 
+
+April 
+
+Raytheon Autonomous Vehicle Competition! 
+
+19                                                                    Raytheon Company – Unrestricted Content 
+
+For Authorized Use Only 
+
+ 
+ 
+ 
+ 
+For Authorized Use Only  
+
+4.1.2  Quarter Base Milestone Template / Notional Schedule 
+Note: this is a template, and not *required* for the project. It is meant to be a reference for building a schedule. 
+
+Figure 2 Semester Based Notional Milestone Template Set 
+
+Date 
+September - Project Kickoff (August) 
+
+October - Project Planning (e.g., System Requirements 
+Review) 
+November 
+
+December - Component Prototype creation 
+
+January (e.g., Test Readiness Reviews)  
+
+February 
+March 
+April 
+May 
+June 
+
+Milestones 
+Requirements Review & Clarification / Q&A by students 
+over the Rules of Engagement. 
+
+Configuration Management 
+Project Logistics 
+Project Proposal & Presentation (e.g., System Design 
+Review) 
+Order Parts 
+Critical Design Review  
+Component Prototype Demonstration(s)  
+Integration & Test 
+
+Integration & Test 
+Integration & Test 
+Demo 1 
+Demo 2 
+Raytheon Autonomous Vehicle Competition! 
+
+4.1.3  Competition Event Schedules by Region 
+
+AVC Regions 
+Southern 
+East Coast 
+Puerto Rico 
+West Coast 
+
+AVC Dates 
+April 17th 
+April 24th 
+April 24th 
+June 6th 
+
+20                                                                    Raytheon Company – Unrestricted Content 
+
+For Authorized Use Only 
+
+ 
+ 
+ 
+ 
+ 
+ 
+For Authorized Use Only  
+
+5  DESIGN AND TEST GUIDENCE 
+As students design their system, they should follow standard engineering processes. University classes 
+should have assignments guiding students through this process. This section will outline some important 
+steps and pose questions to assist students in making design choices and testing their system. 
+
+Understand the Problem 
+
+Read the Rules Document thoroughly 
+
+Read the Qual Test thoroughly 
+
+Create a Requirements Matrix  
+
+Make a Plan and Assign Team Roles 
+
+Begin to ask questions and make high level design choices 
+
+•  What subsystems can the overall deliverable be broken into? 
+•  What research is required for each subsystem? 
+•  What are the single point failure elements of the system? 
+•  What software languages will be used? 
+
+Who will be doing what work? 
+
+Make a timeline with specific dates 
+
+Begin Designing in Detail and Order Parts 
+
+Ask more specific questions that will drive part selection 
+
+If a UGV, how many and what type of wheels/tracks will be used? Can it drive several surfaces? 
+
+• 
+•  What material can we use from previous years’ designs? 
+•  What parts will be needed to identify the Destination?  
+•  How will the drones know their own location and height? 
+•  How will all the hardware be mounted together? 
+•  How will the hardware manage power? 
+•  Can we build custom parts to make our lives easier and design cheaper? 3D Printing etc. 
+•  Are the parts I want from approved vendors? 
+
+Begin making models, drawings and electrical interconnects for the selected parts 
+
+21                                                                    Raytheon Company – Unrestricted Content 
+
+For Authorized Use Only 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+For Authorized Use Only  
+
+Prototyping and Testing 
+
+As designs become prototypes, begin testing your design while there is plenty of time to make changes. 
+Review the Rules Document and ensure the design meets all the requirements. Continue asking 
+questions to look for fatal design flaws. Your goal should be to find ways your system could fail and then 
+go fix them! 
+
+Is my design flexible?  
+
+•  Will I have all my parts in time? 
+•  Do I have a clear path forward to integrate all system elements. 
+• 
+•  Do I have a way to power on everything at the same time? 
+• 
+•  Did I code in a way that can be changed quickly on competition day? Think field size, speed, etc. 
+•  How can I test and prove my system meets the requirements? 
+•  How can I test that my system is reliable in non-ideal conditions? 
+
+Is there anything that I’m overcomplicating? 
+
+o  How far away can an ArUco Marker be detected? At an angle? Different lighting? What 
+
+if the sun is shining at an odd angle?  
+
+o  Can my UGV drive on turf? Can it drive onto the marker or deploy the package on the 
+
+marker without driving onto it? 
+Is my UAV stable in windy conditions? 
+
+o 
+
+•  Document testing and cross reference with your Requirements Matrix! 
+
+Competition Preparation 
+
+Get excited for the big day as you enter the last phase of integration. 
+
+•  COMPLETE THE QUAL TEST AS EARLY AS POSSIBLE 
+•  Do I have tools and spare parts to perform drone surgery at the competition? 
+•  Do I have a monitor, mouse and keyboard to easily debug coding errors that may appear at the 
+
+competition? 
+
+•  Read through the Rules again and make sure your system meets all of them. Requirements 
+
+Matrix and Testing Documentation? 
+
+•  Think of every possible way something could go wrong and then make a plan for how your 
+
+system will overcome that! 
+
+22                                                                    Raytheon Company – Unrestricted Content 
+
+For Authorized Use Only 
+
+ 
+ 
+ 
+ 
+For Authorized Use Only  
+
+5.1  Requirements Matrix 
+It is required to build a Requirements Matrix to help keep students organized throughout the duration 
+of the project. It is a tool that ensures students do not forget requirements they have been given as well 
+as preventing unnecessary scope creep. A Requirements Matrix is common practice for industry Factory 
+Acceptance Tests. A sample of a partial Requirements Matrix can be seen below:  
+
+Requirement ID 
+1 
+2 
+3 
+4 
+
+Description 
+UAV shall have propeller guards. 
+UAV shall have a kill switch 
+UGV shall have a kill switch 
+System can display UAV velocity 
+
+5.2  Test Documentation 
+It is required for teams to produce Test Documentation. Testing Documentation ensures that every 
+requirement has been met. It can also prevent unnecessary testing when a requirement has already 
+been proved in a previous test. Writing and executing good tests will aid in overall organization and 
+efficiency towards the end of the project. Thorough testing documentation is common practice for 
+industry Factory Acceptance Tests. A sample of a partial Test Document can be seen below: 
+
+Test ID 
+1 
+2 
+
+3 
+
+Test Description 
+Verify the UAV has propeller guards installed 
+Autonomously launch the UAV and execute a straight 
+flight path. Verify the system can display the UAV’s 
+velocity. In the middle of the flight, flip the kill switch. 
+Verify the UAV safely stops flight and lands within 10 
+seconds of the kill switch being flipped. 
+Autonomously start the UGV and execute a straight 
+navigation path. In the middle of the path, flip the kill 
+switch. Verify the UGV safely stops within 10 seconds 
+of the kill switch being flipped. 
+
+Requirements Tested 
+1 
+2, 4 
+
+3 
+
+23                                                                    Raytheon Company – Unrestricted Content 
+
+For Authorized Use Only 
+
+ 
+ 
+For Authorized Use Only  
+
+6  ROLES AND RESPONSIBILITIES 
+6.1  Project Mentor 
+Each university will be given a Raytheon representative as a project mentor to help guide the project. 
+
+6.2  Judges 
+Judges will observe the final competition and grade based on performance and requirements met. 
+Judges will not be project mentors. 
+
+6.3  Faculty Advisor 
+The Faculty Advisor(s) are the professors of each respective engineering domain.  Faculty advisors are 
+typically responsible for team creation, grades, monetary logistics, and course work. 
+
+6.4  Project Manager  
+Students can choose a PM that will lead all the teams and be responsible for team communication, 
+logistics, requirements verification and validation, and overall success of the project. 
+
+6.5  Student Teams 
+Teams will consist of undergraduate students in the field of computer science and engineering 
+disciplines.  
+
+24                                                                    Raytheon Company – Unrestricted Content 
+
+For Authorized Use Only 
+
+For Authorized Use Only  
+
+7  AWARDS AND EVALUATION 
+Raytheon’s desire is to encourage students to embrace innovation and real-world experience to further 
+both the school and the individual’s experience.  Independent Raytheon leadership will evaluate each 
+team’s project based on the following categories:  
+
+Core Scored Elements: 
+
+Description 
+
+Requirements Matrix 
+Test Documentation 
+
+Qualifier Test 
+
+Poster / Video 
+
+Challenge 1 
+Challenge 2 
+Challenge 3 
+
+Weights 
+
+5% Points for turning in a Requirements Matrix. 
+5% Points for turning in Testing Documentation. 
+
+20 % Points for completing the qualifier test as 
+pass/fail activity submitted via YouTube 
+5% Points based on the RTN evaluation presentation 
+artifacts: Video/Poster 
+10% of execution of Challenge 1.  
+20% of execution of Challenge 2. 
+35% of execution of Challenge 3 
+
+Note: Only after all challenge objectives have been met will time be used as a tie breaker. 
+
+Bonus Opportunities: 
+
+Description 
+
+Early Bird Incentive Bonus 
+
+STEM Outreach Bonus 
+
+High School Shadow 
+
+Team Shirts 
+
+Weights 
+
+Tiered bonus for completing qualifier test 
+early.  Assume N is the number of teams on region, 
+the first team to complete all the qual test receives 
+(N-1) % bonus, second team (N-2)% and continue 
+until the last team gets nothing. Only Qual Test 
+received a week before the Competition Date are 
+eligible for these bonus points. Idea is to incentivize 
+experimentation and test earlier 
+
+5% bonus to be awarded to each team that 
+completes a STEM outreach activity to school (any 
+level). Example: Teams present their project to a 
+local high school club. 
+5% bonus to teams who mentor a high school 
+student through a shadowing experience. The high 
+school student should not take ownership of any 
+project tasks but would gain experience through 
+periodically shadowing the team throughout the 
+project. Note, additional training may be required. 
+Must begin shadowing by January of 2026 to receive 
+full credit. Partial may be offered if started later. 
+1% bonus to be awarded to schools who design and 
+wear their own unique T-Shirts on Competition Day 
+
+25                                                                    Raytheon Company – Unrestricted Content 
+
+For Authorized Use Only 
+
+ 
+For Authorized Use Only  
+
+Weights 
+
+5 Points will be deducted from the final score for 
+each Calibration Point used on the field. Calibration 
+Point is defined as a physical object added to the 
+field for visual purposes to assist the system in 
+special awareness of the field. Note this does not 
+apply to a visual reference used on the UGV. 
+Calibration points do not send off any kind of signal. 
+Example: Red Dot on a corner of the field. 
+10 Points will be deducted from the final score for 
+each beacon device used. This includes dropping a 
+Beacon on the destination or using a Beacons to 
+map the field. Beacon is defined as any device 
+outputting a signal to call out a location. Examples: 
+Bluetooth, wifi, sound, radio, etc. 
+
+Penalties: 
+
+Description 
+
+Calibration Points 
+
+Beacon 
+
+Scoring Examples: 
+
+If a Team in a region of 10 schools receives full credit for all the Core Scoring Elements and receives the 
+max number of Bonus Points with no penalties, they would be scored as shown below with the 
+percentage breakdown in red and the points scored in blue: 
+
+Core Scored Elements Score: 
+
+Qual Test     Req Matrix      Test Docs    Poster/Video            C1                 C2            C3  
+
+.2(150)     +    .05(100)   +   .05(100)   +   .05(100)         +     .1(100)  +  .2(100)  +  .35(100)       =     110 Points 
+
+Bonus Points Opportunities: 
+
+Early Bird     STEM Outreach         Shadow             T-Shirts 
+
+(10-1)        +      .05(100)         +     .05(100)    +      .01(100)      =       20 Bonus 
+
+Total 
+
+Core Scored Elements Points   +   Bonus Points 
+
+  110                  +                     20          = 145 Total Points 
+
+26                                                                    Raytheon Company – Unrestricted Content 
+
+For Authorized Use Only 
+
+ 
+           
+                    
+ 
+ 
+ 
+ 
+ 
+For Authorized Use Only  
+
+Scenario A: Team A has received all the available points on their Qual Test, Requirements Matrix and 
+Test Documentation. However, they were not eligible for the Early Bird Bonus. They received full credit 
+for their poster and video. On competition day they successfully completed both Challenge 1, Challenge 
+2, and Challenge 3 with no problems and received full credit. They did NOT complete a STEM outreach 
+or have a shadow student, but they did make some super cool custom T-Shirts! They received a penalty 
+for using one Beacon. They would be scored as follows with the percentage breakdown in red and the 
+points scored in blue: 
+
+Core Scored Elements Score: 
+
+Qual Test     Req Matrix      Test Docs      Poster/Video            C1           C2              C3 
+
+.2(150)     +    .05(100)   +  .05(100)     +     .05(100)     +     .1(100)  +  .2(100)  +  .35(100)       =     110 Points 
+
+Bonus Points Opportunities: 
+
+Early Bird     STEM Outreach         Shadow             T-Shirts 
+
+(0)        +            .05(0)         +            .05(0)    +      .01(100)      =       1 Bonus 
+
+Total 
+
+Core Scored Elements Points   +   Bonus Points     -    Penalties 
+
+  110                   +                     1                    -         10             = 101 Total Points 
+
+Scenario B: Team B was the third school in a region of 10 to turn in their qual test early and received 132 
+points on their Qual Test. They did not complete a Requirements Matrix or Testing Documentation. They 
+received full credit for their poster and video. On competition day they successfully completed 
+Challenge 1 and Challenge 2 but only received 80/100 points for Challenge 3. They completed a STEM 
+Outreach, had a shadow student and make T-Shirts. They received no penalties. They would be scored 
+as follows with the percentage breakdown in red and the points scored in blue: 
+
+Core Scored Elements Score: 
+
+Qual Test     Req Matrix      Test Docs    Poster/Video            C1                 C2            C3  
+
+.2(132)     +    .05(0)      +      .05(0)     +      .05(100)     +     .1(100)  +  .2(100)  +  .35(80)          =     89.4 Points 
+
+Bonus Points Opportunities: 
+
+Early Bird     STEM Outreach         Shadow             T-Shirts 
+
+(10-3)        +      .05(100)         +     .05(100)    +      .01(100)      =       18 Bonus 
+
+Total 
+
+Core Scored Elements Points   +   Bonus Points 
+
+  89.4                   +                     18          = 107.4 Total Points 
+
+27                                                                    Raytheon Company – Unrestricted Content 
+
+For Authorized Use Only 
+
+           
+                    
+           
+                    
+ 
+ 
+For Authorized Use Only  
+
+8  Appendix A – Internet Access (optional) 
+Internet access to the aerial and ground vehicles is optional; however, it may help facilitate flight and 
+target identification options in appendices B and C. 
+
+8.1  Option 1: Local “Guest” network to "base station area" 
+If the supporting venue provides guest Wi-Fi to the staging area(s), any network usage passes 
+through each team's base station to their vehicle(s) through telemetry radios. Most base 
+station software (Mission Planner, QGC, etc.) support this functionality.   Please note that the 
+UTA Guest network may be unreliable both in connectivity and speed. 
+
+8.2  Option 2: "You're on your own"  
+In practice, this means bring your own cellular model and/or hotspot and infrastructure to 
+ensure each component has the necessary Internet connectivity. 
+
+28                                                                    Raytheon Company – Unrestricted Content 
+
+For Authorized Use Only 
+
+ 
+ 
+For Authorized Use Only  
+
+9  Appendix B – Logging 
+Logging is required for all UGV’s to help determine intended actions.   
+
+The following actions must be logged: 
+
+•  UAV Start Time 
+•  Destination discovery 
+•  Communication between Autonomous Vehicles 
+•  Location of the destination 
+•  UGV Start Time 
+•  UGV receipt of destination location 
+•  UGV generated path 
+•  UGV speed 
+•  UGV End time 
+•  UAV End time 
+
+29                                                                    Raytheon Company – Unrestricted Content 
+
+For Authorized Use Only 
+
+ 
+ 
+ 
+ 
+ 
+ 
+For Authorized Use Only  
+
+10 Appendix C – Q&A 
+
+• 
+
+• 
+
+In a GPS denied scenario, would the team be allowed to place known point-targets on the field 
+to act as calibrating anchors? (i.e. ultra-wideband anchors)   
+
+o  Yes, but penalties will be acquired. 
+
+ Do you need to start UAV by code or can we hit a button by hand. Do you have to be hands off 
+when starting at dynamic position   
+
+o  Either works.  One can push a button after placing the Scout in the starting position  
+
+•  Will the final event be outdoors? What is the dimension of the space?   
+
+o  Yes - should be 15 yards by 15 yards  
+
+• 
+
+Is there a Power restriction?   
+
+o  No 
+
+•  Where is the Kill switch supposed to be? Can you use laptop for the kill switch?   
+
+o  Usually the "Kill Switch" is on the hand controller.  Hand Controller should be available 
+
+for emergency situation, but not used during flight  
+
+•  How many ArUco markers will be on the fields at once?  
+
+o  Only 1  
+
+•  What is the dB limit for a sound beacon to mark the delivery location?   
+
+o  OSHA Rules  
+
+•  The IP form states in Section 1:  STUDENT EMPLOYMENT STATUS "Student represents and 
+
+warrants that he/she is not an employee of the University." Does this disqualify students that 
+work at the University Bookstore, Fitness Center or other campus jobs?  
+
+o  Please have the student mark up the IP agreement to make it accurate to the student's 
+
+situation and we can choose to fully execute or not.  
+
+•  What are the non-ideal conditions that could occur on competition day? Rain? Heavy wind?  
+o  The only reason we would delay is if the conditions were not safe for us to be outside 
+
+(lighting, tornado, etc.). There may be heavy wind.  
+
+•  Will there be a defined maximum altitude or ceiling for UAV flight during the challenges?  
+
+o  No, just as long as they are compliant with FAA rules  
+
+•  Can the drone carry the ground vehicle?  
+
+o  Yes, they must meet the flight/ride time requirements and stay under 55lbs combined 
+
+per FAA regulation 
+
+•  Can they place a marker next to but not on the marker. 
+
+o  Yes, but a penalty will be aquired  
+
+• 
+
+Is time in the score?  
+
+o  Yes, but only after the objective is met. If your team hits all the obstacles or doesn’t land 
+while their UGV is moving they will not be able to make up these points with a fast time. 
+
+•  Can there be more than one UAV? 
+
+o  Yes. All of the UAV’s must land on the UGV. At least one UAV must land on the UGV 
+
+while landing, others may land on a stopped UGV. All must safely land before the Judge 
+will stop time. Points will be deducted for crash landings. 
+
+•  What does “no crash landing” mean? 
+
+o  No significant damage to either vehicle. Both should be able to fully operate after 
+
+landing. If it looks like a crash, the judges will mark it as a crash. 
+
+30                                                                    Raytheon Company – Unrestricted Content 
+
+For Authorized Use Only 
+
+For Authorized Use Only  
+
+11 Appendix D FAA Regulations 
+There are 3 categories of Drone Flight: 
+
+•  Commercial 
+•  Recreational 
+•  Educational 
+
+The Raytheon AVC expects to operate in the Education Category 
+
+If the 2025-2026 AVC operates under the Educational Category,  
+
+•  The FAA Regulations regarding the Educational Category can be found here Educational Users | 
+
+Federal Aviation Administration (faa.gov). 
+
+•  Note: At the time of this writing, Remote ID is not required for Drones operating in a FRIA: UAS 
+
+Remote Identification | Federal Aviation Administration (faa.gov) 
+
+•  Note: FRIA zones can only be requested by non-profit organizations or educational institutions 
+•  Note: At the time of this writing, none of the AVC Competition areas have been verified as FRIA 
+
+• 
+
+zones, but may be by the time of the competition 
+Institutions of Higher Education. There is also a statutory provision (PL 115-254, Section 350) 
+that distinguishes some educational and research uses of UAV by institutions of higher 
+education as recreational in nature.  
+
+If the 2025-2026 AVC operates under the Recreational Category.   
+
+•  The FAA Regulations regarding the Recreational Category can be found here: Recreational Flyers 
+
+& Community-Based Organizations | Federal Aviation Administration (faa.gov) 
+
+•  Note: At the time of this writing, TRUST certification is required for recreational fliers.  
+
+Information about TRUST can be found here: The Recreational UAS Safety Test (TRUST) | 
+Federal Aviation Administration (faa.gov) 
+
+•  Note: At the time of this writing, Beginning September 16, 2023 all drone pilots required to 
+
+register, including those who fly for recreation, business, or public safety, must operate their 
+drone in accordance with the rule on Remote ID.  Information about Remote ID can be found 
+here: UAS Remote Identification | Federal Aviation Administration (faa.gov) 
+
+31                                                                    Raytheon Company – Unrestricted Content 
+
+For Authorized Use Only 
+
+ 
+For Authorized Use Only  
+
+12 Appendix E Sky Labs Research 
+Sky Labs Research is a company created by students who have competed in the Raytheon Autonomous 
+Vehicle Competition previously. They are offering consultation services to provide recommendations on 
+drone parts and systems integration. The company / service is not affiliated with Raytheon in any way 
+but is provided here as an example for teams who would like to try and accelerate their research and 
+prototyping.  
+
+•  Consultation services: https://skylabsresearch.com/products/consultations 
+•  On the site, Sky Labs will be offering consultation meeting scheduling for students to meet and 
+discuss how they can best be supported by Sky Labs. After the first meeting the service will 
+transition to a free email correspondence, or you may schedule more meetings as needed. 
+
+Sky Labs will not provide design decisions/ideas but will help try and guide them to reach their own 
+design choices. 
+
+•  Free Nugget: eCalc - https://www.ecalc.ch/ is used to calculate drone power trains. It should be 
+
+used by students during the drones’ design phase. 
+
+32                                                                    Raytheon Company – Unrestricted Content 
+
+For Authorized Use Only 
+
+For Authorized Use Only  
+
+13 Appendix F Discord 
+Please ask your mentor about joining the discord with BrainChip and Deep Perception for assistance 
+using their products. 
+
+33                                                                    Raytheon Company – Unrestricted Content 
+
+For Authorized Use Only 
+
+For Authorized Use Only  
+
+14 Appendix G Points of Contact 
+`Raytheon Technologies Points of Contact  
+
+1.  Jesse Lee (Raytheon Autonomous Vehicle Competition Lead), UT Student Mentor, email: 
+
+jesse@rtx.com, Phone: 806-535-2271 
+
+2.  Leonard Chen (Raytheon Senior Leadership), Technology Outreach and University Research, 
+
+email: lpchen@rtx.com,  Phone: 805-895-6427 
+
+3.  Melissa Im, Raytheon Drone Council, email: Melissa.Im@rtx.com, Phone: 703-216-1734 
+4.  Alfonso Lopez (Competition Council), UTEP Student Mentor, email: Alfonso.A.Lopez@rtx.com, 
+
+Phone: 214-502-7018 
+
+5.  Hector Irizarry (Competition Council), Puerto Rico Representative, email: 
+
+Hector.Irizarry@rtx.com , Phone: 214-608-2586 
+
+14.1 Mentors 
+14.1.1  South Region 
+
+1.  Marta Tatu, University of Texas at Dallas Student Mentor, email: marta.tatu@rtx.com 
+2.  Raghav Vadhera, University of Texas at Arlington Student Mentor, email: 
+
+bhanu.p.vadhera@rtx.com 
+
+3.  Meredith Burke, Southern Methodist University Student Mentor, email: 
+
+Meredith.s.burke@rtx.com 
+
+4.  Bentley Davis, Texas A&M University Student Mentor, email: bentley.davis@rtx.com 
+5.  Lamarious Carter, Jackson State University Student Mentor, email: Lamarious.Carter@rtx.com 
+6.  Aly Bybee, University of Mississippi Student Mentor, email: alyson.parsons@rtx.com 
+7.  Jesse Lee, University of Texas at Austin Student Mentor, email: email: jesse@rtx.com 
+8.  Alfonso Lopez, University of Texas at El Paso Student Mentor, email: Alfonso.A.Lopez@rtx.com 
+9.  Jonathan Tamplin, Prairie View A&M Student Mentor, email: jonathan.tamplin@rtx.com  
+10. Lauryn Page, Alabama A&M Student Mentor, email: lauryn.page@rtx.com 
+
+14.1.1.1  Puerto Rico Region 
+
+1.  Angel Diaz, Interamerican University of Puerto Rico Student Mentor, email: angel.diaz@rtx.com 
+2.  Josues Gonzalez, UAGM-G Student Mentor, email: josues.gonzalez@rtx.com 
+3.  Marycarmen Torres, University of Puerto Rico at Mayaguez Student Mentor, email: 
+
+marycarmen.torres2@prattwhitney.com 
+
+4.  Julissa Almodovar, University of Puerto Rico at Mayaguez  Student Mentor, email: 
+
+JULISSA.ALMODOVAR@collins.com 
+
+5.  Hector Irizarry Polytechnic University of Puerto Rico Student Mentor, email: 
+
+Hector.Irizarry@rtx.com 
+
+14.1.1.2  West Coast Region 
+
+1.  Ryan Conolley, University of California Santa Barbara Student Mentor, email: conolley@rtx.com 
+2.  Luis Esparza, California Polytechnic State University Student Mentor, email: 
+
+luis.esparza@rtx.com 
+
+3.  James Cooper , California State, Long Beach Student Mentor, email: james.i.cooper@rtx.com 
+
+14.1.1.3  East Coast Region 
+
+1.  Nandi Leslie, Howard University Student Mentor, email: Nandi.O.Leslie@rtx.com 
+2.  Jarick Cammarato, George Washington University Student Mentor, email: 
+
+Jar.Cammarato@rtx.com 
+
+34                                                                    Raytheon Company – Unrestricted Content 
+
+For Authorized Use Only 
+
+For Authorized Use Only  
+
+3.  Johnathan L Lyles, George Mason University Student Mentor, email: jlyles@rtx.com 
+4.  Alice Jackson / Nathan Pagel, Virginia Polytechnic Institute and State University Student Mentor, 
+
+email: Alice.C.Diggs@rtx.com / npagel@rtx.com 
+
+5.  J Schroder, University of South Florida, email: J.Schroder@rtx.com 
+
+35                                                                    Raytheon Company – Unrestricted Content 
+
+For Authorized Use Only 
+
+ 
+

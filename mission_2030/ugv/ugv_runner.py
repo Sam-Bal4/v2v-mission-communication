@@ -103,6 +103,11 @@ def main():
         seq += 1
 
     last_hb_t = 0.0
+    
+    target_drive_time = 0.0
+    active_drive_time = 0.0
+    last_drive_t = 0.0
+    touchdown_start_t = 0.0
 
     try:
         arm_ugv(vehicle)
@@ -127,11 +132,27 @@ def main():
 
             # ── START MOVING ─────────────────────────────────────────
             elif state == UgvState.START_MOTION:
+                target_dist = math.hypot(dest.x_m, dest.z_m)
+                target_drive_time = target_dist / DRIVE_SPEED if DRIVE_SPEED > 0 else 0
+                logger.info(f"Calculated distance: {target_dist:.2f} m. "
+                            f"Target drive time: {target_drive_time:.1f} s")
                 logger.info("Starting drive toward destination...")
                 state = UgvState.NAVIGATE_TO_DESTINATION
+                last_drive_t = time.time()
 
             # ── NAVIGATE ─────────────────────────────────────────────
             elif state == UgvState.NAVIGATE_TO_DESTINATION:
+                dt = now - last_drive_t
+                last_drive_t = now
+                active_drive_time += dt
+                
+                if active_drive_time >= target_drive_time:
+                    logger.info("Destination reached! Stopping.")
+                    send_stop(vehicle)
+                    state = UgvState.EXPECT_UAV_TOUCHDOWN
+                    touchdown_start_t = time.time()
+                    continue
+
                 # Check lidar
                 dist = lidar.read_lidar()
                 if dist < OBSTACLE_THRESHOLD_M:
@@ -143,7 +164,7 @@ def main():
                     continue
 
                 # Drive forward
-                msg = build_drive_msg(vehicle, 1.0)
+                msg = build_drive_msg(vehicle, DRIVE_SPEED)
                 vehicle.send_mavlink(msg)
                 time.sleep(0.05)
 
@@ -163,7 +184,7 @@ def main():
                 logger.info("Avoidance: drive past...")
                 t0 = time.time()
                 while time.time() - t0 < 3.0:
-                    vehicle.send_mavlink(build_drive_msg(vehicle, 1.0))
+                    vehicle.send_mavlink(build_drive_msg(vehicle, DRIVE_SPEED))
                     time.sleep(0.05)
                 send_stop(vehicle)
                 time.sleep(0.5)
@@ -178,12 +199,17 @@ def main():
                 lidar.led_clear()
                 logger.info("Obstacle cleared. Resuming navigation.")
                 state = UgvState.NAVIGATE_TO_DESTINATION
+                last_drive_t = time.time()
 
             # ── EXPECT TOUCHDOWN ────────────────────────────────────
             elif state == UgvState.EXPECT_UAV_TOUCHDOWN:
                 broadcast(UgvState.EXPECT_UAV_TOUCHDOWN)
-                logger.info("Holding at destination. Waiting for UAV touchdown...")
-                time.sleep(0.5)
+                if time.time() - touchdown_start_t > 30.0:
+                    logger.info("Ride time complete. Mission ending.")
+                    state = UgvState.MISSION_COMPLETE
+                else:
+                    logger.info("Holding at destination. Waiting for UAV touchdown... (Timeout: {:.1f}s)".format(30 - (time.time() - touchdown_start_t)))
+                    time.sleep(0.5)
 
             # ── COMPLETE ─────────────────────────────────────────────
             elif state == UgvState.MISSION_COMPLETE:
