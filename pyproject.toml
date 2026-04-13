@@ -13,12 +13,17 @@ dependencies = [
     "pymavlink",
     "pyyaml",
     "pyserial",
-    "pydantic"
+    "pydantic",
+    "dronekit"
 ]
+
+[tool.setuptools.packages.find]
+# Tell setuptools that packages live in the repo root, not inside a src/ dir
+where = ["."]
 
 [tool.pytest.ini_options]
 minversion = "6.0"
 addopts = "-ra -q"
 testpaths = [
-    "tests",
+    "mission_2030/tests",
 ]
