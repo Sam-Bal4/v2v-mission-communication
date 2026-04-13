@@ -25,15 +25,38 @@ if not exist "%VENV_PATH%" (
         pause
         exit /b 1
     )
-    echo Installing dependencies from pyproject.toml...
-    "%VENV_PATH%\Scripts\pip" install --upgrade pip
-    "%VENV_PATH%\Scripts\pip" install -e "%REPO_ROOT%"
-) else (
-    echo Using existing virtual environment at %VENV_PATH%
 )
 
 :: Activate the venv
 call "%VENV_PATH%\Scripts\activate"
+
+:: ------ Verify Dependencies ------
+set "SENTINEL=%VENV_PATH%\venv_ready"
+set "ENV_OK=true"
+
+if not exist "%SENTINEL%" set "ENV_OK=false"
+if "%ENV_OK%"=="true" (
+    python -c "import past, numpy" >nul 2>&1
+    if errorlevel 1 (
+        echo Environment health check failed (missing modules). Repairing...
+        set "ENV_OK=false"
+    )
+)
+
+if "%ENV_OK%"=="false" (
+    echo Environment incomplete or corrupted. Installing dependencies...
+    python -m pip install --upgrade pip
+    python -m pip install -e "%REPO_ROOT%"
+    if errorlevel 1 (
+        echo ERROR: Installation failed.
+        pause
+        exit /b 1
+    )
+    echo. > "%SENTINEL%"
+    echo Environment ready!
+) else (
+    echo Using existing virtual environment at %VENV_PATH%
+)
 
 :: ------ Export PYTHONPATH ------
 set "PYTHONPATH=%REPO_ROOT%"
