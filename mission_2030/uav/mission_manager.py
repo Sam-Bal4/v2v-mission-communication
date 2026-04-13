@@ -1,8 +1,8 @@
 import time
-from operation_touchdown.uav.state_machine import UavState
-from operation_touchdown.uav.mavlink_client import MavlinkClient
-from operation_touchdown.radio.v2v_bridge import V2VBridge
-from operation_touchdown.common.logging_utils import setup_logger
+from mission_2030.uav.state_machine import UavState
+from mission_2030.uav.mavlink_client import MavlinkClient
+from mission_2030.radio.v2v_bridge import V2VBridge
+from mission_2030.common.logging_utils import setup_logger
 
 logger = setup_logger("UAV_MissionManager")
 
@@ -19,6 +19,5 @@ class MissionManager:
     def run(self):
         while self.state != UavState.MISSION_COMPLETE:
             if self.state == UavState.COMM_LOSS:
-                 break
-            # Add state machine tick logic
+                break
             time.sleep(0.1)

@@ -1,7 +1,7 @@
 import time
-from operation_touchdown.ugv.state_machine import UgvState
-from operation_touchdown.radio.v2v_bridge import V2VBridge
-from operation_touchdown.common.logging_utils import setup_logger
+from mission_2030.ugv.state_machine import UgvState
+from mission_2030.radio.v2v_bridge import V2VBridge
+from mission_2030.common.logging_utils import setup_logger
 
 logger = setup_logger("UGV_MissionManager")
 
@@ -18,5 +18,4 @@ class MissionManager:
         while self.state != UgvState.MISSION_COMPLETE:
             if self.state == UgvState.ESTOP:
                 break
-            # Add state machine tick logic
             time.sleep(0.1)

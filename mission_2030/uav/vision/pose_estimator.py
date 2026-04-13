@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-from operation_touchdown.common.frames import camera_to_body_ned
+from mission_2030.common.frames import camera_to_body_ned
 
 class PoseEstimator:
     def __init__(self, camera_matrix, dist_coeffs):
@@ -24,3 +24,15 @@ class PoseEstimator:
                 rvecs.append(rvec)
                 tvecs.append(tvec)
         return rvecs, tvecs
+
+    def estimate_angles(self, tvec_body) -> tuple:
+        """
+        Given a body-NED tvec (x_fwd, y_right, z_down in metres),
+        return (angle_x_rad, angle_y_rad, dist_m) for LANDING_TARGET.
+        """
+        import math
+        x, y, z = tvec_body
+        dist = math.sqrt(x**2 + y**2 + z**2)
+        ax   = math.atan2(y, z)   # lateral angle (right positive)
+        ay   = math.atan2(-x, z)  # longitudinal angle (forward negative)
+        return ax, ay, dist
