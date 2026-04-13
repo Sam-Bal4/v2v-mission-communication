@@ -29,7 +29,11 @@ from dronekit import connect, VehicleMode
 import serial
 
 # Sensor-specific imports
-import depthai as dai
+try:
+    import depthai as dai
+except ImportError:
+    dai = None
+
 try:
     from akida import Model, devices
 except ImportError:
@@ -107,7 +111,8 @@ class MultiSensorDetector:
         # Camera + Akida
         self.cam_pipeline = None
         self.akida_model = None
-        if Model and os.path.exists(model_path):
+        self.cam_q = None
+        if dai and Model and os.path.exists(model_path):
             try:
                 self.akida_model = Model(model_path)
                 devs = devices()
@@ -118,7 +123,11 @@ class MultiSensorDetector:
             except Exception as e:
                 print(f"[WARN] Akida/Camera init failed: {e}")
         else:
-            print(f"[WARN] Akida model not found at {model_path} - Camera AI disabled.")
+            reason = ""
+            if not dai: reason += "depthai missing, "
+            if not Model: reason += "akida missing, "
+            if not os.path.exists(model_path): reason += f"model not found at {model_path}"
+            print(f"[WARN] Camera AI disabled: {reason}")
 
     def _setup_camera(self):
         self.cam_pipeline = dai.Pipeline()
@@ -169,7 +178,7 @@ class MultiSensorDetector:
                 return True, "ULTRASONIC", us_dist
 
         # 3. Camera check (Akida inference on middle third)
-        if self.akida_model and self.cam_q.has():
+        if self.akida_model and self.cam_q and self.cam_q.has():
             import cv2
             frame = self.cam_q.get().getCvFrame()
             # Mini-preprocess for Akida (224x224)
