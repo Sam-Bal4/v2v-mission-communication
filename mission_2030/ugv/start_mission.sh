@@ -82,6 +82,7 @@ echo "  [t4]  Test 04 – Receive UAV destination vector → drive to ArUco"
 echo "  [t5]  Test 05 – Forward drive (pair with drone test 05)"
 echo "  [t6]  Test 06 – Turn left  (pair with drone test 06)"
 echo "  [t7]  Test 07 – Turn right (pair with drone test 07)"
+echo "  [t11] Test 11 – Arm & Avoid Obstacles via UAV command"
 echo ""
 echo "  [q]  Quit"
 echo ""
@@ -105,6 +106,7 @@ case "$CHOICE" in
     t5) run_script "$MISSION_ROOT/dennis_test/groundvehicle/05_fly_side_by_side_forward.py" ;;
     t6) run_script "$MISSION_ROOT/dennis_test/groundvehicle/06_fly_side_by_side_left.py" ;;
     t7) run_script "$MISSION_ROOT/dennis_test/groundvehicle/07_fly_side_by_side_right.py" ;;
+    t11) run_script "$MISSION_ROOT/dennis_test/groundvehicle/11_arm_ugv_avoid.py" ;;
     q|Q) echo "Exiting."; exit 0 ;;
     *) echo -e "${RED}Invalid choice.${NC}"; exit 1 ;;
 esac

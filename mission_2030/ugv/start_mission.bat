@@ -78,6 +78,7 @@ echo [t4]  Test 04 - Receive UAV destination vector -> drive to ArUco
 echo [t5]  Test 05 - Forward drive (pair with drone test 05)
 echo [t6]  Test 06 - Turn left  (pair with drone test 06)
 echo [t7]  Test 07 - Turn right (pair with drone test 07)
+echo [t11] Test 11 - Arm & Avoid Obstacles via UAV command
 echo.
 echo [q]  Quit
 echo.
@@ -89,6 +90,7 @@ if "%CHOICE%"=="t4" set "SCRIPT=%MISSION_ROOT%\dennis_test\groundvehicle\04_ugv_
 if "%CHOICE%"=="t5" set "SCRIPT=%MISSION_ROOT%\dennis_test\groundvehicle\05_fly_side_by_side_forward.py"
 if "%CHOICE%"=="t6" set "SCRIPT=%MISSION_ROOT%\dennis_test\groundvehicle\06_fly_side_by_side_left.py"
 if "%CHOICE%"=="t7" set "SCRIPT=%MISSION_ROOT%\dennis_test\groundvehicle\07_fly_side_by_side_right.py"
+if "%CHOICE%"=="t11" set "SCRIPT=%MISSION_ROOT%\dennis_test\groundvehicle\11_arm_ugv_avoid.py"
 if "%CHOICE%"=="q" exit /b 0
 
 if defined SCRIPT (

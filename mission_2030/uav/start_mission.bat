@@ -85,6 +85,7 @@ echo [t7]  Test 07 - Right sway pacing with UGV
 echo [t8]  Test 08 - Proportional centering hover (high, 1.3m)
 echo [t9]  Test 09 - Proportional centering hover (low, 0.5m)
 echo [t10] Test 10 - Full precision landing (LANDING_TARGET stream)
+echo [t11] Test 11 - Command UGV to Arm and Avoid Obstacles
 echo.
 echo [q]  Quit
 echo.
@@ -103,6 +104,7 @@ if "%CHOICE%"=="t7" set "SCRIPT=%MISSION_ROOT%\dennis_test\drone\07_fly_side_by_
 if "%CHOICE%"=="t8" set "SCRIPT=%MISSION_ROOT%\dennis_test\drone\08_center_hover_high.py"
 if "%CHOICE%"=="t9" set "SCRIPT=%MISSION_ROOT%\dennis_test\drone\09_center_hover_low.py"
 if "%CHOICE%"=="t10" set "SCRIPT=%MISSION_ROOT%\dennis_test\drone\10_precision_land.py"
+if "%CHOICE%"=="t11" set "SCRIPT=%MISSION_ROOT%\dennis_test\drone\11_arm_ugv_avoid.py"
 if "%CHOICE%"=="q" exit /b 0
 
 if defined SCRIPT (
