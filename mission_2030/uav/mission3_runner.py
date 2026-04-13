@@ -161,18 +161,18 @@ def main():
     mission_start = time.time()
 
     def grab_frame():
-        if zed:
+        if zed and sl:
             if zed.grab() != sl.ERROR_CODE.SUCCESS:
                 return None, None
             zed.retrieve_image(zed_img, sl.VIEW.LEFT)
             zed.retrieve_measure(point_cloud_mat, sl.MEASURE.XYZ)
             return cv2.cvtColor(zed_img.get_data(), cv2.COLOR_BGRA2BGR), point_cloud_mat
         else:
-            ret, f = cam.read()
+            ret, f = cam.read() if cam else (False, None)
             return (f, None) if ret else (None, None)
 
     def get_angles(cx, cy, w, h, pc):
-        if zed and pc is not None:
+        if zed and sl and pc is not None:
             err, p3d = pc.get_value(cx, cy)
             x, y, z = float(p3d[0]), float(p3d[1]), float(p3d[2])
             if err == sl.ERROR_CODE.SUCCESS and not any(math.isnan(v) for v in [x, y, z]):

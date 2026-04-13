@@ -140,9 +140,12 @@ def main():
 
     # Try ZED SDK for depth
     zed = None
+    sl  = None          # will be set if pyzed import succeeds
+    zed_img = None
     point_cloud_mat = None
     try:
-        import pyzed.sl as sl
+        import pyzed.sl as sl_module
+        sl  = sl_module
         zed = sl.Camera()
         ip  = sl.InitParameters()
         ip.camera_resolution = sl.RESOLUTION.HD720
@@ -198,14 +201,14 @@ def main():
                 return
 
             # Grab frame
-            if zed:
+            if zed and sl:
                 if zed.grab() != sl.ERROR_CODE.SUCCESS:
                     continue
                 zed.retrieve_image(zed_img, sl.VIEW.LEFT)
                 zed.retrieve_measure(point_cloud_mat, sl.MEASURE.XYZ)
                 frame_bgr = cv2.cvtColor(zed_img.get_data(), cv2.COLOR_BGRA2BGR)
             else:
-                ret, frame_bgr = cam.read()
+                ret, frame_bgr = cam.read() if cam else (False, None)
                 if not ret:
                     continue
 
@@ -220,7 +223,7 @@ def main():
                         cx = int((c[0][0] + c[2][0]) / 2)
                         cy = int((c[0][1] + c[2][1]) / 2)
 
-                        if zed and point_cloud_mat is not None:
+                        if zed and sl and point_cloud_mat is not None:
                             err, p3d = point_cloud_mat.get_value(cx, cy)
                             x, y, z  = float(p3d[0]), float(p3d[1]), float(p3d[2])
                             if err == sl.ERROR_CODE.SUCCESS and not any(math.isnan(v) for v in [x, y, z]):
@@ -267,7 +270,7 @@ def main():
                 break
 
             # Grab frame
-            if zed:
+            if zed and sl:
                 if zed.grab() != sl.ERROR_CODE.SUCCESS:
                     time.sleep(0.05)
                     continue
@@ -275,7 +278,7 @@ def main():
                 zed.retrieve_measure(point_cloud_mat, sl.MEASURE.XYZ)
                 frame_bgr = cv2.cvtColor(zed_img.get_data(), cv2.COLOR_BGRA2BGR)
             else:
-                ret, frame_bgr = cam.read()
+                ret, frame_bgr = cam.read() if cam else (False, None)
                 if not ret:
                     time.sleep(0.02)
                     continue
@@ -290,7 +293,7 @@ def main():
                 cy = int((c[0][1] + c[2][1]) / 2)
                 h, w = frame_bgr.shape[:2]
 
-                if zed and point_cloud_mat is not None:
+                if zed and sl and point_cloud_mat is not None:
                     err, p3d = point_cloud_mat.get_value(cx, cy)
                     px, py, pz = float(p3d[0]), float(p3d[1]), float(p3d[2])
                     if err == sl.ERROR_CODE.SUCCESS and not any(math.isnan(v) for v in [px, py, pz]):
