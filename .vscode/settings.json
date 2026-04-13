@@ -1,0 +1,26 @@
+{
+  "python.analysis.extraPaths": [
+    "c:/Users/DinGoDasH/Videos/2030/v2v-mission-communication"
+  ],
+  "python.analysis.autoImportCompletions": true,
+  "python.analysis.packageIndexDepths": [
+    {
+      "name": "mission_2030",
+      "depth": 5
+    }
+  ],
+  "python.analysis.indexing": true,
+  "python.analysis.diagnosticMode": "workspace",
+  "python.analysis.include": [
+    "mission_2030",
+    "mission_2030/uav",
+    "mission_2030/ugv",
+    "mission_2030/common",
+    "mission_2030/radio"
+  ],
+  "python.analysis.exclude": [
+    "src_legacy",
+    "**/__pycache__",
+    ".git"
+  ]
+}

@@ -18,8 +18,8 @@ dependencies = [
 ]
 
 [tool.setuptools.packages.find]
-# Tell setuptools that packages live in the repo root, not inside a src/ dir
 where = ["."]
+include = ["mission_2030*"]
 
 [tool.pytest.ini_options]
 minversion = "6.0"

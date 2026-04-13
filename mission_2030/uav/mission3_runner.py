@@ -140,7 +140,7 @@ def main():
 
     zed = None; zed_img = None; point_cloud_mat = None; sl = None
     try:
-        import pyzed.sl as sl_module
+        import pyzed.sl as sl_module  # type: ignore
         sl = sl_module
         zed = sl.Camera()
         ip  = sl.InitParameters()

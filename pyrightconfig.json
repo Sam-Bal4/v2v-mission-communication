@@ -1,18 +1,17 @@
 {
   "pythonVersion": "3.10",
-  "pythonPlatform": "Linux",
+  "pythonPlatform": "Windows",
   "extraPaths": [
-    "."
+    "c:/Users/DinGoDasH/Videos/2030/v2v-mission-communication"
   ],
   "include": [
     "mission_2030"
   ],
   "exclude": [
+    "src_legacy",
     "**/__pycache__",
-    "**/node_modules",
     ".git"
   ],
-  "reportMissingModuleSource": "none",
-  "reportMissingImports": "none",
-  "typeCheckingMode": "off"
+  "reportMissingImports": "warning",
+  "typeCheckingMode": "basic"
 }
