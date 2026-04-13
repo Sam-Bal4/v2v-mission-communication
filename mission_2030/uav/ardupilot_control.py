@@ -30,15 +30,16 @@ class ArdupilotControl:
             mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM,
             0, 1, 0, 0, 0, 0, 0, 0
         )
-        # Wait for ARM confirm
         start_t = time.time()
         while time.time() - start_t < 10:
             msg = self.master.recv_match(type='HEARTBEAT', blocking=True, timeout=1.0)
-            if msg and (msg.base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED):
-                logger.info("Vehicle Armed successfully.")
-                return True
+            if msg and msg.get_srcSystem() == self.master.target_system:
+                if msg.base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED:
+                    logger.info("Vehicle Armed successfully ✓")
+                    return True
         logger.error("Failed to arm within timeout.")
         return False
+
 
     def disarm_vehicle(self):
         logger.info("Disarming...")
