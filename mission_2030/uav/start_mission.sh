@@ -12,34 +12,33 @@
 
 set -e   # exit on unexpected errors
 
-# ------ Figure out where the REPO ROOT is, regardless of where you launch from ------
+# ------ Resolve REPO ROOT regardless of where you launch from ------
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 MISSION_ROOT="$REPO_ROOT/mission_2030"
+VENV_PATH="$REPO_ROOT/.venv"
 
-# ------ Export PYTHONPATH so all imports resolve ------
-export PYTHONPATH="$REPO_ROOT"
-
-# ------ Colour helpers ------
-RED='\033[0;31m'; GREEN='\033[0;32m'; CYAN='\033[0;36m'
-YELLOW='\033[1;33m'; BOLD='\033[1m'; NC='\033[0m'
-
-clear
-echo -e "${BOLD}${CYAN}"
-echo "  ╔═══════════════════════════════════════╗"
-echo "  ║    OPERATION TOUCHDOWN — UAV LAUNCHER ║"
-echo "  ║         Cube Orange+ / Jetson Orin    ║"
-echo "  ╚═══════════════════════════════════════╝"
-echo -e "${NC}"
-echo -e "  Repo root : ${GREEN}$REPO_ROOT${NC}"
-echo -e "  PYTHONPATH: ${GREEN}$PYTHONPATH${NC}"
-echo ""
-
-# ------ Check Python ------
-if ! command -v python3 &>/dev/null; then
-    echo -e "${RED}ERROR: python3 not found. Install it first.${NC}"
-    exit 1
+# ------ Create/Activate Virtual Environment ------
+if [ ! -d "$VENV_PATH" ]; then
+    echo -e "${YELLOW}Virtual environment not found. Creating one at $VENV_PATH...${NC}"
+    if ! command -v python3 &>/dev/null; then
+        echo -e "${RED}ERROR: python3 not found. Cannot create venv.${NC}"
+        exit 1
+    fi
+    python3 -m venv "$VENV_PATH"
+    echo -e "${GREEN}Installing dependencies from pyproject.toml...${NC}"
+    "$VENV_PATH/bin/pip" install --upgrade pip
+    "$VENV_PATH/bin/pip" install -e "$REPO_ROOT"
+else
+    echo -e "${CYAN}Using existing virtual environment at $VENV_PATH${NC}"
 fi
+
+# Activate the venv
+# shellcheck source=/dev/null
+source "$VENV_PATH/bin/activate"
+
+# ------ Export PYTHONPATH ------
+export PYTHONPATH="$REPO_ROOT"
 
 # ------ Main menu ------
 echo -e "${BOLD}Select what to run:${NC}"
