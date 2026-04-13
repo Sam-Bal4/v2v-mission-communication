@@ -9,7 +9,7 @@ description = "ArduPilot-based UAV/UGV collaborative autonomy system"
 requires-python = ">=3.10"
 dependencies = [
     "opencv-python",
-    "numpy",
+    "numpy<2",
     "pymavlink",
     "pyyaml",
     "pyserial",
