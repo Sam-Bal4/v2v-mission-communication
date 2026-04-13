@@ -1,4 +1,3 @@
-import time
 from mission_2030.common.logging_utils import setup_logger
 
 logger = setup_logger("RangefinderMonitor")

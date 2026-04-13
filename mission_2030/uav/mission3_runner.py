@@ -7,7 +7,6 @@ re-enters GUIDED and climbs slightly. Once the UGV clears, it switches back to L
 import time
 import signal
 import math
-import numpy as np
 import cv2
 from pymavlink import mavutil
 

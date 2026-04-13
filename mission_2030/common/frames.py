@@ -1,5 +1,3 @@
-import numpy as np
-
 def camera_to_body_ned(x_cam: float, y_cam: float, z_cam: float) -> tuple[float, float, float]:
     """
     Transforms ZED downward camera frame (OpenCV standard: Z out, Y down, X right) 

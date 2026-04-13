@@ -1,5 +1,3 @@
-import struct
-
 SOF = 0xAA
 TYPE_HEARTBEAT_UAV = 0x10
 TYPE_HEARTBEAT_UGV = 0x11

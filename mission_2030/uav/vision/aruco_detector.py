@@ -1,5 +1,4 @@
 import cv2
-import numpy as np
 
 class ArucoDetector:
     def __init__(self, dict_type=cv2.aruco.DICT_4X4_50):

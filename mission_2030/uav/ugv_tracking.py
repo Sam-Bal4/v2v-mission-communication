@@ -1,6 +1,5 @@
 import math
 import cv2
-import numpy as np
 import pyzed.sl as sl
 from mission_2030.common.logging_utils import setup_logger
 

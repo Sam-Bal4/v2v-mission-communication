@@ -8,7 +8,6 @@ ZED is unavailable (e.g. bench test).
 import time
 import signal
 import math
-import numpy as np
 import cv2
 from pymavlink import mavutil
 
