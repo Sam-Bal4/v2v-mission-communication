@@ -32,16 +32,6 @@ fi
 if [ ! -d "$VENV_PATH" ]; then
     echo -e "${YELLOW}Virtual environment not found. Creating one at $VENV_PATH...${NC}"
     "$PY_CMD" -m venv "$VENV_PATH"
-    
-    # Check if bin/python or Scripts/python exists
-    VENV_PY="$VENV_PATH/bin/python"
-    [ ! -f "$VENV_PY" ] && VENV_PY="$VENV_PATH/Scripts/python"
-
-    echo -e "${GREEN}Installing dependencies from pyproject.toml...${NC}"
-    "$VENV_PY" -m pip install --upgrade pip
-    "$VENV_PY" -m pip install -e "$REPO_ROOT"
-else
-    echo -e "${CYAN}Using existing virtual environment at $VENV_PATH${NC}"
 fi
 
 # Activate the venv (handle bin/activate vs Scripts/activate)
@@ -50,6 +40,19 @@ ACTIVATE_SCRIPT="$VENV_PATH/bin/activate"
 
 # shellcheck source=/dev/null
 source "$ACTIVATE_SCRIPT"
+
+# ------ Verify Dependencies ------
+# We use a sentinel file to ensure the initial installation finished successfully
+SENTINEL="$VENV_PATH/venv_ready"
+if [ ! -f "$SENTINEL" ]; then
+    echo -e "${YELLOW}Environment incomplete. Installing dependencies...${NC}"
+    python -m pip install --upgrade pip
+    python -m pip install -e "$REPO_ROOT"
+    touch "$SENTINEL"
+    echo -e "${GREEN}Environment ready!${NC}"
+else
+    echo -e "${CYAN}Using existing virtual environment at $VENV_PATH${NC}"
+fi
 
 # ------ Export PYTHONPATH ------
 export PYTHONPATH="$REPO_ROOT"
