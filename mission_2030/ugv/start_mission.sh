@@ -33,13 +33,13 @@ if [ ! -d "$VENV_PATH" ]; then
     echo -e "${YELLOW}Virtual environment not found. Creating one at $VENV_PATH...${NC}"
     "$PY_CMD" -m venv "$VENV_PATH"
     
-    # Check if bin/pip or Scripts/pip exists
-    PIP_EXE="$VENV_PATH/bin/pip"
-    [ ! -f "$PIP_EXE" ] && PIP_EXE="$VENV_PATH/Scripts/pip"
+    # Check if bin/python or Scripts/python exists
+    VENV_PY="$VENV_PATH/bin/python"
+    [ ! -f "$VENV_PY" ] && VENV_PY="$VENV_PATH/Scripts/python"
 
     echo -e "${GREEN}Installing dependencies from pyproject.toml...${NC}"
-    "$PIP_EXE" install --upgrade pip
-    "$PIP_EXE" install -e "$REPO_ROOT"
+    "$VENV_PY" -m pip install --upgrade pip
+    "$VENV_PY" -m pip install -e "$REPO_ROOT"
 else
     echo -e "${CYAN}Using existing virtual environment at $VENV_PATH${NC}"
 fi
