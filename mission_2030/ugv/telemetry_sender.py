@@ -11,7 +11,7 @@ class TelemetrySender:
         self.seq += 1
         self.bridge.send_ugv_heartbeat(
             self.seq,
-            int(time.time() * 1000),
+            (int(time.time() * 1000) & 0xFFFFFFFF),
             phase_val,
             is_estop
         )

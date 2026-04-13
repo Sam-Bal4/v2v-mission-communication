@@ -125,7 +125,7 @@ def main():
         logger.info("Waiting for UGV radio heartbeat...")
         seq = 0
         while not _abort:
-            bridge.send_uav_heartbeat(seq, int(time.time() * 1000), 1, False)
+            bridge.send_uav_heartbeat(seq, (int(time.time() * 1000) & 0xFFFFFFFF), 1, False)
             seq += 1
             if bridge.latest_heartbeat_ugv_time > time.time() - 3.0:
                 logger.info("UGV link confirmed ✓")

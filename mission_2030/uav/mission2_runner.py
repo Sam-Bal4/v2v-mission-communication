@@ -216,13 +216,13 @@ def main():
 
         # ─── Send destination to UGV (spray 5x for reliability) ──────────
         payload = DestinationFound(
-            seq=1, timestamp_ms=int(time.time() * 1000),
+            seq=1, timestamp_ms=(int(time.time() * 1000) & 0xFFFFFFFF),
             marker_id=dest_marker_id,
             x_m=dest_x_m, y_m=dest_y_m, z_m=dest_z_m,
             yaw_rad=0.0, confidence=0.9)
         for _ in range(5):
             bridge.send_destination(payload)
-            bridge.send_uav_heartbeat(1, int(time.time() * 1000), 8, False)
+            bridge.send_uav_heartbeat(1, (int(time.time() * 1000) & 0xFFFFFFFF), 8, False)
             time.sleep(0.1)
         logger.info("Destination transmitted to UGV.")
 

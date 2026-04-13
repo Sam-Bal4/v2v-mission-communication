@@ -204,7 +204,7 @@ def main():
 
         # ─── Send destination ─────────────────────────────────
         payload = DestinationFound(
-            seq=1, timestamp_ms=int(time.time() * 1000), marker_id=dest_id,
+            seq=1, timestamp_ms=(int(time.time() * 1000) & 0xFFFFFFFF), marker_id=dest_id,
             x_m=dx, y_m=dy, z_m=dz, yaw_rad=0.0, confidence=0.9)
         for _ in range(5):
             bridge.send_destination(payload)

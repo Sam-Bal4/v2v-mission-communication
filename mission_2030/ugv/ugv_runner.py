@@ -85,7 +85,7 @@ def main():
 
     def broadcast(phase: UgvState, estop=False):
         nonlocal seq
-        bridge.send_ugv_heartbeat(seq, int(time.time() * 1000), phase.value, estop)
+        bridge.send_ugv_heartbeat(seq, (int(time.time() * 1000) & 0xFFFFFFFF), phase.value, estop)
         seq += 1
 
     last_hb_t = 0.0
