@@ -14,7 +14,8 @@ dependencies = [
     "pyyaml",
     "pyserial",
     "pydantic",
-    "dronekit"
+    "dronekit",
+    "future"
 ]
 
 [tool.setuptools.packages.find]

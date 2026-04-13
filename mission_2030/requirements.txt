@@ -5,3 +5,4 @@ pyyaml>=6.0.1
 pyserial>=3.5
 pydantic>=2.4.0
 dronekit>=2.9.2
+future>=0.18.3
