@@ -85,7 +85,7 @@ echo [t7]  Test 07 - Right sway pacing with UGV
 echo [t8]  Test 08 - Proportional centering hover (high, 1.3m)
 echo [t9]  Test 09 - Proportional centering hover (low, 0.5m)
 echo [t10] Test 10 - Full precision landing (LANDING_TARGET stream)
-echo [t11] Test 11 - Command UGV to Arm and Avoid Obstacles
+echo [t11] Test 11 - Radio commander: arm UGV ^& obstacle avoidance (no drone flight)
 echo.
 echo [q]  Quit
 echo.

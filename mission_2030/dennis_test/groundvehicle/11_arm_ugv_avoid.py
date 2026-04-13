@@ -1,8 +1,26 @@
+"""
+Test 11 – UGV Arm & Obstacle Avoidance (UGV side)
+===================================================
+1. Boots ESP32 radio bridge and waits for UAV to broadcast phase=11.
+2. Once commanded, arms the UGV via DroneKit and starts driving forward.
+3. TF-Nova Lidar monitors for obstacles. On detection:
+     - Stop
+     - Turn Left 90°
+     - Drive past (~3 s)
+     - Turn Right 90°
+     - Resume straight
+4. Stops and disarms cleanly when UAV broadcasts phase=0, or Ctrl+C.
+
+Run from repo root on RPi:
+  export PYTHONPATH=$(pwd)
+  python3 mission_2030/dennis_test/groundvehicle/11_arm_ugv_avoid.py
+"""
 import time
+import signal
 import sys
 import os
 
-# Compatibility patch for dronekit
+# Python 3.10+ DroneKit compatibility patch
 import collections
 if not hasattr(collections, 'MutableMapping'):
     import collections.abc
@@ -15,108 +33,147 @@ from mission_2030.radio.v2v_bridge import V2VBridge
 from mission_2030.common.mavlink_utils import arm_vehicle_dronekit
 from mission_2030.ugv.obstacle_avoidance import ObstacleAvoidance
 
-UGV_PORT = "/dev/ttyACM0"
-ESP32_PORT = "/dev/ttyUSB0"
+UGV_PORT    = "/dev/ttyACM0"
+ESP32_PORT  = "/dev/ttyUSB0"
+BAUD        = 115200
+
+DRIVE_SPEED           = 0.5     # throttle 0-1
+TURN_RATE_DEG_S       = 45.0   # degrees per second
+TURN_90_S             = 90.0 / TURN_RATE_DEG_S   # 2 seconds
+TURN_RATE_RAD_S       = TURN_RATE_DEG_S * (3.14159 / 180.0)
+OBSTACLE_THRESHOLD_M  = 1.6    # metres – TF-Nova trigger distance
+PAST_DRIVE_S          = 3.0    # seconds to drive past obstacle
+
+_abort = False
+def _sigint(sig, frame):
+    global _abort
+    _abort = True
+signal.signal(signal.SIGINT,  _sigint)
+signal.signal(signal.SIGTERM, _sigint)
+
+# ── MAVLink helpers ──────────────────────────────────────────────────────────
 
 def build_drive_msg(vehicle, throttle, yaw_rate=0.0):
-    """
-    throttle: roughly -1.0 to 1.0 mapped to ESC PWM
-    yaw_rate: rad/s for differential steering
-    """
+    """Send an attitude-target command: throttle -1..1, yaw_rate rad/s."""
     return vehicle.message_factory.set_attitude_target_encode(
-        0, 0, 0, 0xA3, [1.0, 0.0, 0.0, 0.0], 0.0, 0.0, yaw_rate, throttle
+        0, 0, 0, 0xA3,           # time_boot, target_sys, target_comp, type_mask
+        [1.0, 0.0, 0.0, 0.0],   # quaternion (identity)
+        0.0, 0.0, yaw_rate,      # roll / pitch / yaw rates
+        throttle
     )
 
 def send_stop(vehicle):
     msg = build_drive_msg(vehicle, 0.0, 0.0)
-    for _ in range(5):
+    for _ in range(8):
         vehicle.send_mavlink(msg)
-        time.sleep(0.01)
+        time.sleep(0.02)
+
+def drive_forward(vehicle):
+    vehicle.send_mavlink(build_drive_msg(vehicle, DRIVE_SPEED, 0.0))
+
+def turn(vehicle, direction_sign, duration_s):
+    """direction_sign: -1 = left, +1 = right"""
+    t0 = time.time()
+    while time.time() - t0 < duration_s and not _abort:
+        vehicle.send_mavlink(build_drive_msg(vehicle, 0.0, direction_sign * TURN_RATE_RAD_S))
+        time.sleep(0.05)
+    send_stop(vehicle)
+    time.sleep(0.3)
+
+def avoid_obstacle(vehicle, lidar):
+    """Full left-bypass maneuver."""
+    print("\n  [Avoidance] Obstacle detected – stopping")
+    send_stop(vehicle)
+    lidar.led_obstacle()
+    time.sleep(0.4)
+
+    print("  [Avoidance] Turn Left 90°")
+    turn(vehicle, -1, TURN_90_S)
+
+    print("  [Avoidance] Drive past obstacle")
+    t0 = time.time()
+    while time.time() - t0 < PAST_DRIVE_S and not _abort:
+        drive_forward(vehicle)
+        time.sleep(0.05)
+    send_stop(vehicle)
+    time.sleep(0.3)
+
+    print("  [Avoidance] Turn Right 90°")
+    turn(vehicle, +1, TURN_90_S)
+
+    lidar.led_clear()
+    print("  [Avoidance] Resuming straight\n")
+
+# ── Main ─────────────────────────────────────────────────────────────────────
 
 def main():
-    print("--- Test 11: UGV Arm & Avoid via UAV Command ---")
+    print("=" * 52)
+    print("  TEST 11 – UGV ARM & AVOID (UGV side)")
+    print("  Ctrl+C → stops cleanly and disarms")
+    print("=" * 52)
+
+    # ── 1. Init radio bridge ──────────────────────────────
     bridge = V2VBridge(ESP32_PORT)
     bridge.connect()
+    print("ESP32 bridge connected ✓")
 
-    print("Initializing TF-Nova Lidar...")
-    # Matches competition UGV baud & port
+    # ── 2. Init Lidar ─────────────────────────────────────
     lidar = ObstacleAvoidance(port="/dev/ttyAMA0", baud=115200)
+    print("TF-Nova Lidar initialised ✓")
 
-    vehicle = connect(UGV_PORT, wait_ready=True, baud=115200)
-
-    print("Waiting for UAV Command (Phase 11)...")
-    start_drive = False
-    while not start_drive:
-        if bridge.latest_uav_heartbeat and bridge.latest_uav_heartbeat.mission_phase == 11:
-            start_drive = True
+    # ── 3. Wait for UAV start signal ──────────────────────
+    print("Waiting for UAV Phase 11 command over radio...")
+    while not _abort:
+        hb = bridge.latest_uav_heartbeat
+        if hb and hb.mission_phase == 11:
+            print("Phase 11 received from UAV ✓")
             break
-        time.sleep(0.5)
+        time.sleep(0.3)
 
-    print("Command Received! Arming UGV...")
-    if not arm_vehicle_dronekit(vehicle, mode_name="GUIDED"):
+    if _abort:
+        bridge.stop()
+        print("Aborted before arming.")
         return
 
-    print("Starting Drive with Obstacle Avoidance...")
-    
-    DRIVE_SPEED = 0.5
-    TURN_RATE_DEG_S = 45.0 * (3.14159 / 180.0) # ~0.78 rad/s
-    OBSTACLE_THRESHOLD_M = 1.6
+    # ── 4. Connect DroneKit & arm ─────────────────────────
+    print(f"Connecting to UGV on {UGV_PORT}...")
+    vehicle = connect(UGV_PORT, wait_ready=True, baud=BAUD)
 
-    active = True
-    while active:
-        # Check if UAV turned off Phase 11
-        if bridge.latest_uav_heartbeat and bridge.latest_uav_heartbeat.mission_phase != 11:
-            print("UAV commanded stop. Finishing test.")
-            active = False
-            break
+    if not arm_vehicle_dronekit(vehicle, mode_name="GUIDED"):
+        print("ERROR: Failed to arm UGV. Aborting.")
+        bridge.stop()
+        vehicle.close()
+        return
 
-        dist = lidar.read_lidar()
-        if dist < OBSTACLE_THRESHOLD_M:
-            print(f"Obstacle detected at {dist:.2f}m! Executing maneuver...")
-            send_stop(vehicle)
-            lidar.led_obstacle()
-            time.sleep(0.5)
+    print("UGV Armed and driving! (Ctrl+C to stop)")
 
-            print("  -> Turn Left")
-            t0 = time.time()
-            turn_dur = 90.0 / 45.0 # 90 deg at 45 deg/s = 2 sec
-            while time.time() - t0 < turn_dur:
-                vehicle.send_mavlink(build_drive_msg(vehicle, 0.0, -TURN_RATE_DEG_S))
+    # ── 5. Drive loop ─────────────────────────────────────
+    try:
+        while not _abort:
+            # Check for UAV stop signal
+            hb = bridge.latest_uav_heartbeat
+            if hb and hb.mission_phase != 11:
+                print(f"\nUAV sent phase={hb.mission_phase} – stopping.")
+                break
+
+            dist = lidar.read_lidar()
+            if dist < OBSTACLE_THRESHOLD_M:
+                avoid_obstacle(vehicle, lidar)
+            else:
+                drive_forward(vehicle)
                 time.sleep(0.05)
-            send_stop(vehicle)
-            time.sleep(0.5)
 
-            print("  -> Drive Past")
-            t0 = time.time()
-            while time.time() - t0 < 3.0:
-                vehicle.send_mavlink(build_drive_msg(vehicle, DRIVE_SPEED, 0.0))
-                time.sleep(0.05)
-            send_stop(vehicle)
-            time.sleep(0.5)
-
-            print("  -> Turn Right")
-            t0 = time.time()
-            while time.time() - t0 < turn_dur:
-                vehicle.send_mavlink(build_drive_msg(vehicle, 0.0, TURN_RATE_DEG_S))
-                time.sleep(0.05)
-            send_stop(vehicle)
-            time.sleep(0.5)
-
-            lidar.led_clear()
-            print("Resuming straight forward...")
-
-        else:
-            # Clear path, keep driving forward
-            vehicle.send_mavlink(build_drive_msg(vehicle, DRIVE_SPEED, 0.0))
-            time.sleep(0.05)
-
-    print("Stopping and Disarming UGV.")
-    send_stop(vehicle)
-    vehicle.armed = False
-    
-    bridge.stop()
-    vehicle.close()
-    print("Test 11 UGV complete ✓")
+    finally:
+        # ── 6. Stop & disarm ─────────────────────────────
+        print("Stopping and disarming UGV...")
+        send_stop(vehicle)
+        vehicle.armed = False
+        t0 = time.time()
+        while vehicle.armed and time.time() - t0 < 10:
+            time.sleep(0.2)
+        bridge.stop()
+        vehicle.close()
+        print("Test 11 UGV complete ✓")
 
 if __name__ == "__main__":
     main()

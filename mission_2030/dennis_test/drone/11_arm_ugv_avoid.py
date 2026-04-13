@@ -1,65 +1,60 @@
+"""
+Test 11 – UGV Arm & Obstacle Avoidance (UAV side = radio commander only)
+=========================================================================
+No drone arming or flight. This script simply opens the ESP32 V2V bridge
+and broadcasts phase=11 so the UGV knows to arm and start driving.
+After 60 seconds it sends phase=0 (stop) and exits cleanly.
+
+Run from repo root:
+  export PYTHONPATH=$(pwd)
+  python3 mission_2030/dennis_test/drone/11_arm_ugv_avoid.py
+"""
 import time
-from pymavlink import mavutil
+import signal
 import sys
 import os
 
-# Allow importing the bridge from the main directory
 sys.path.append(os.path.abspath("../../"))
 from mission_2030.radio.v2v_bridge import V2VBridge
-from mission_2030.common.mavlink_utils import arm_vehicle, wait_disarm, get_lidar_alt
 
-DRONE_PORT = "/dev/ttyACM0"
 ESP32_PORT = "/dev/ttyUSB0"
-BAUD_RATE = 57600
+BROADCAST_DURATION_S = 60       # how long to tell UGV to keep driving
+
+_abort = False
+def _sigint(sig, frame):
+    global _abort
+    _abort = True
+signal.signal(signal.SIGINT,  _sigint)
+signal.signal(signal.SIGTERM, _sigint)
 
 def main():
-    print("--- Test 11: UAV Commands UGV to Arm and Avoid Obstacles ---")
+    print("=" * 50)
+    print("  TEST 11 – UGV ARM & AVOID (Radio Commander)")
+    print("  Ctrl+C → sends stop to UGV and exits cleanly")
+    print("=" * 50)
+
     bridge = V2VBridge(ESP32_PORT)
     bridge.connect()
+    print("ESP32 bridge connected ✓")
 
-    master = mavutil.mavlink_connection(DRONE_PORT, baud=BAUD_RATE)
-    master.wait_heartbeat()
-    
-    mapping = master.mode_mapping()
-    master.mav.set_mode_send(master.target_system, mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED, mapping["GUIDED"])
-    time.sleep(1)
-
-    print("Arming UAV...")
-    if not arm_vehicle(master):
-        return
-
-    print("Takeoff → 1.3m")
-    master.mav.command_long_send(master.target_system, master.target_component, 
-                                 mavutil.mavlink.MAV_CMD_NAV_TAKEOFF, 0, 0, 0, 0, 0, 0, 0, 1.3)
-    
-    # Wait for altitude
-    t0 = time.time()
-    while time.time() - t0 < 15:
-        alt = get_lidar_alt(master)
-        if alt and alt >= 1.3 * 0.9:
-            print("Altitude reached ✓")
-            break
-        time.sleep(0.2)
-
-    print("Commanding UGV to Arm & Drive (Sending phase=11)...")
-    
+    print(f"Broadcasting Phase 11 (UGV: Arm & Drive) for {BROADCAST_DURATION_S}s...")
+    seq = 0
     start_t = time.time()
-    while time.time() - start_t < 30:
-        # Constantly blast Phase 11 so UGV keeps driving
-        bridge.send_uav_heartbeat(0, (int(time.time() * 1000) & 0xFFFFFFFF), 11, False)
-        time.sleep(0.5)
+    try:
+        while not _abort and (time.time() - start_t) < BROADCAST_DURATION_S:
+            bridge.send_uav_heartbeat(seq, (int(time.time() * 1000) & 0xFFFFFFFF), 11, False)
+            seq += 1
+            elapsed = time.time() - start_t
+            print(f"\r  Driving... {elapsed:.0f}s / {BROADCAST_DURATION_S}s", end="", flush=True)
+            time.sleep(0.5)
+    finally:
+        print("\nSending STOP signal to UGV (phase=0)...")
+        for _ in range(5):          # blast stop 5x for reliability
+            bridge.send_uav_heartbeat(seq, (int(time.time() * 1000) & 0xFFFFFFFF), 0, False)
+            time.sleep(0.1)
 
-    print("30 seconds elapsed. Switching to LAND...")
-    bridge.send_uav_heartbeat(0, (int(time.time() * 1000) & 0xFFFFFFFF), 0, False)
-    
-    master.mav.set_mode_send(master.target_system, mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED, mapping["LAND"])
-
-    if wait_disarm(master, 90):
-        print("Test 11 UAV complete ✓")
-    else:
-        print("Warning: landing timeout reached.")
-
-    bridge.stop()
+        bridge.stop()
+        print("Test 11 UAV-side complete ✓")
 
 if __name__ == "__main__":
     main()
