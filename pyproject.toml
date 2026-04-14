@@ -17,7 +17,9 @@ dependencies = [
     "dronekit",
     "future",
     "depthai",
-    "akida"
+    "akida",
+    "gpiozero",
+    "lgpio"
 ]
 
 [tool.setuptools.packages.find]
