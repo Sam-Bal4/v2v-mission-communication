@@ -99,25 +99,15 @@ def arm_and_takeoff(alt):
     )
 
 # ─── CAMERA SETUP ──────────────────────────────────────────────────────────────
-# Try ZED SDK first, fallback to standard cv2 VideoCapture
-zed = None
-try:
-    import pyzed.sl as sl
-    zed = sl.Camera()
-    init_params = sl.InitParameters()
-    init_params.camera_resolution = sl.RESOLUTION.HD720
-    init_params.depth_mode = sl.DEPTH_MODE.NONE # Only need RGB for Aruco
-    if zed.open(init_params) == sl.ERROR_CODE.SUCCESS:
-        print("ZED X initialized.")
-        zed_img = sl.Mat()
-    else:
-        zed = None
-        print("ZED open failed, falling back.")
-except ImportError:
-    print("PyZED not installed. Using cv2 VideoCapture.")
+# Using pure OpenCV (Video4Linux) as requested to fix the green screen issue
+cap = cv2.VideoCapture(0)
+if not cap.isOpened():
+    print("Error: Could not open camera.")
+    exit(1)
 
-if zed is None:
-    cap = cv2.VideoCapture(0)
+# Optional: Force a standard resolution
+cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
 aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
 aruco_params = cv2.aruco.DetectorParameters()
@@ -135,23 +125,15 @@ print("Starting Precision Landing State Machine")
 print("Press 'q' or Ctrl+C to quit.")
 
 try:
-    # Set to loiter and takeoff
-    change_mode("LOITER")
+    # Set to GUIDED (doesn't require GPS if Optical Flow is active)
+    change_mode("GUIDED")
     arm_and_takeoff(TARGET_HEIGHT_M)
     state = "APPROACH"
     
     while True:
-        # Grab frame
-        if zed is not None:
-            if zed.grab() == sl.ERROR_CODE.SUCCESS:
-                zed.retrieve_image(zed_img, sl.VIEW.LEFT)
-                frame = zed_img.get_data()
-                frame = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
-            else:
-                continue
-        else:
-            ret, frame = cap.read()
-            if not ret: continue
+        # Grab frame with OpenCV
+        ret, frame = cap.read()
+        if not ret: continue
 
         # Detect markers
         if aruco_detector:
@@ -221,8 +203,8 @@ try:
         # STATE MACHINE LOGIC
         if state == "APPROACH":
             if stable_count >= PLND_STABLE_FRAMES:
-                print(">>> Target acquired and stable. Switching to PRECISION LOITER.")
-                change_mode("LOITER")  # ArduPilot implements Prec Loiter within Loiter mode automatically if tracking
+                print(">>> Target acquired and stable. Holding in GUIDED until perfectly aligned.")
+                # We stay in GUIDED while sending TARGET messages. 
                 state = "PREC_LOITER"
         
         elif state == "PREC_LOITER":
@@ -254,11 +236,9 @@ try:
 
 finally:
     print("Cleaning up...")
-    if zed is not None:
-        zed.close()
-    elif 'cap' in locals() and cap is not None:
+    if 'cap' in locals() and cap is not None:
         cap.release()
     cv2.destroyAllWindows()
     # Failsafe abort mode
     if state != "LANDED":
-        change_mode("LOITER")
+        change_mode("GUIDED")
