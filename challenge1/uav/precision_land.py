@@ -88,14 +88,15 @@ class CameraInterface:
         self.cap.set(cv2.CAP_PROP_FPS, self.fps)
 
     def load_standard_calibration(self, yaml_path: Optional[str]):
-        if self.use_zed: return
         if yaml_path:
             fs = cv2.FileStorage(yaml_path, cv2.FILE_STORAGE_READ)
             K = fs.getNode("K").mat()
             D = fs.getNode("D").mat()
             fs.release()
-            self.camera_matrix = np.array(K, dtype=np.float64)
-            self.dist_coeffs = np.array(D, dtype=np.float64)
+            if K is not None and D is not None:
+                self.camera_matrix = np.array(K, dtype=np.float64)
+                self.dist_coeffs = np.array(D, dtype=np.float64)
+                print(f"Loaded custom camera calibration from {yaml_path}")
             return
 
     def get_frame(self) -> Optional[np.ndarray]:
@@ -197,9 +198,8 @@ def arm_and_takeoff(alt):
 
 # ─── MAIN PROGRAM ──────────────────────────────────────────────────────────────
 def main():
-    # Attempt ZED first, fallback to standard if ZED not heavily used. 
-    # To strictly use standard USB webcam w/ yaml:
-    USE_ZED = False  
+    # Attempt ZED first to prevent v4l2 OpenCV timeout crash
+    USE_ZED = True  
     yaml_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "calibration_chessboard.yaml")
     
     # Intentionally initialize camera flawlessly using Friend's script wrapper
