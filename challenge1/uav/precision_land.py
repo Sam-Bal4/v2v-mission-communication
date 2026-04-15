@@ -36,13 +36,9 @@ TARGET_HEIGHT_M = 2.0
 PLND_STABLE_FRAMES = 15   # Frames of solid tracking before engaging Precision Loiter
 LAND_LATERAL_ERR_M = 0.20 # Meters of allowed lateral error before switching to LAND
 
-# Camera Calibration (ZED X HD720 equivalent fallback)
-CAM_MATRIX = np.array([
-    [528.0,   0.0, 640.0],
-    [  0.0, 528.0, 360.0],
-    [  0.0,   0.0,   1.0]
-], dtype=np.float32)
-DIST_COEFFS = np.zeros((5, 1), dtype=np.float32)
+# Camera calibration variables (will be populated from ZED SDK dynamically)
+CAM_MATRIX = None
+DIST_COEFFS = None
 
 # ─── MAVLINK HELPERS ───────────────────────────────────────────────────────────
 master = mavutil.mavlink_connection(MAVLINK_CONN, baud=BAUD_RATE)
@@ -99,15 +95,41 @@ def arm_and_takeoff(alt):
     )
 
 # ─── CAMERA SETUP ──────────────────────────────────────────────────────────────
-# Using pure OpenCV (Video4Linux) as requested to fix the green screen issue
-cap = cv2.VideoCapture(0)
-if not cap.isOpened():
-    print("Error: Could not open camera.")
+# We are using PyZED exclusively based on working hardware config
+try:
+    import pyzed.sl as sl
+except ImportError:
+    print("CRITICAL ERROR: pyzed.sl is not installed. You must install the ZED SDK on this Jetson!")
     exit(1)
 
-# Optional: Force a standard resolution
-cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+zed = sl.Camera()
+init_params = sl.InitParameters()
+init_params.camera_resolution = sl.RESOLUTION.HD1080
+init_params.camera_fps = 30
+init_params.depth_mode = sl.DEPTH_MODE.NONE
+
+err = zed.open(init_params)
+if err != sl.ERROR_CODE.SUCCESS:
+    print(f"Failed to open ZED camera: {err}")
+    exit(1)
+
+print("ZED X initialized perfectly.")
+zed_img = sl.Mat()
+
+# Pull real hardware calibration parameters
+cam_info = zed.get_camera_information()
+calib = cam_info.camera_configuration.calibration_parameters.left_cam
+CAM_MATRIX = np.array([
+    [calib.fx, 0.0, calib.cx],
+    [0.0, calib.fy, calib.cy],
+    [0.0, 0.0, 1.0],
+], dtype=np.float32)
+
+dist = np.array(calib.disto, dtype=np.float32).flatten()
+if dist.size >= 5:
+    DIST_COEFFS = dist[:5].reshape(-1, 1)
+else:
+    DIST_COEFFS = dist.reshape(-1, 1)
 
 aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
 aruco_params = cv2.aruco.DetectorParameters()
@@ -131,9 +153,20 @@ try:
     state = "APPROACH"
     
     while True:
-        # Grab frame with OpenCV
-        ret, frame = cap.read()
-        if not ret: continue
+        # Grab frame with ZED SDK reliably
+        if zed.grab() != sl.ERROR_CODE.SUCCESS:
+            print("Failed to grab ZED frame.")
+            time.sleep(0.01)
+            continue
+            
+        zed.retrieve_image(zed_img, sl.VIEW.LEFT)
+        frame_data = zed_img.get_data()
+        
+        # Exact channel fix to prevent the 'green screen' bug
+        if frame_data.shape[-1] == 4:
+            frame = cv2.cvtColor(frame_data, cv2.COLOR_BGRA2BGR)
+        else:
+            frame = frame_data.copy()
 
         # Detect markers
         if aruco_detector:
@@ -236,8 +269,8 @@ try:
 
 finally:
     print("Cleaning up...")
-    if 'cap' in locals() and cap is not None:
-        cap.release()
+    if 'zed' in locals() and zed is not None:
+        zed.close()
     cv2.destroyAllWindows()
     # Failsafe abort mode
     if state != "LANDED":
