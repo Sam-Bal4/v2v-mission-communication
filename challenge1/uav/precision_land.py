@@ -20,8 +20,8 @@ MAVLINK_CONN = "/dev/ttyACM0"      # Or udp:127.0.0.1:14550
 BAUD_RATE    = 921600
 
 # Nested ArUco Marker Setup
-LARGE_MARKER_ID   = 10
-SMALL_MARKER_ID   = 20
+LARGE_MARKER_ID   = 5
+SMALL_MARKER_ID   = 0
 LARGE_MARKER_SIZE = 0.50   # 50 cm
 SMALL_MARKER_SIZE = 0.16   # 16 cm
 
