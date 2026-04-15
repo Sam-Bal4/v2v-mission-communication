@@ -16,6 +16,12 @@ import cv2.aruco as aruco
 import numpy as np
 from pymavlink import mavutil
 
+def draw_crosshair(frame: np.ndarray):
+    h, w = frame.shape[:2]
+    cx, cy = w // 2, h // 2
+    cv2.line(frame, (0, cy), (w, cy), (0, 255, 0), 1)
+    cv2.line(frame, (cx, 0), (cx, h), (0, 255, 0), 1)
+
 # ─── USER CONFIGURATION ────────────────────────────────────────────────────────
 MAVLINK_CONN = "/dev/ttyACM0"      # Or udp:127.0.0.1:14550
 BAUD_RATE    = 921600
@@ -171,6 +177,8 @@ try:
         else:
             frame = frame_data.copy()
 
+        draw_crosshair(frame)
+
         # Detect markers
         if aruco_detector:
             corners, ids, _ = aruco_detector.detectMarkers(frame)
@@ -229,9 +237,13 @@ try:
                     stable_count += 1
                     found = True
 
-                    # Visualization
+                    # Visualization (Green Boxes and Axes)
                     aruco.drawDetectedMarkers(frame, [img_pts.reshape(1, 4, 2)], np.array([[marker_id]]))
-                    cv2.putText(frame, f"X:{x_b:.2f}m Y:{y_b:.2f}m Z:{z_b:.2f}m", (20, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                    cv2.drawFrameAxes(frame, CAM_MATRIX, DIST_COEFFS, rvec, tvec, marker_size * 0.5)
+
+                    # Print Data Overlay
+                    cv2.putText(frame, f"MARKER {marker_id} LOCKED", (20, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                    cv2.putText(frame, f"XYZ Err: [{x_b:.2f}, {y_b:.2f}, {z_b:.2f}] m", (20, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
 
         if not found:
             stable_count = 0
@@ -250,7 +262,7 @@ try:
                 state = "APPROACH"
             elif found and target_eb is not None:
                 err_m = math.sqrt(target_eb[0]**2 + target_eb[1]**2)
-                cv2.putText(frame, f"Error: {err_m:.2f}m", (20, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
+                cv2.putText(frame, f"Alignment Err: {err_m:.2f}m", (20, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
                 
                 if err_m < LAND_LATERAL_ERR_M:
                     print(">>> Aligned perfectly! Switching to LAND.")
@@ -266,7 +278,7 @@ try:
                 state = "LANDED"
                 break
         
-        cv2.putText(frame, f"STATE: {state}", (20, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 100, 255), 2)
+        cv2.putText(frame, f"STATE: {state}", (20, 130), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 100, 255), 2)
         cv2.imshow("Precision Landing", frame)
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
