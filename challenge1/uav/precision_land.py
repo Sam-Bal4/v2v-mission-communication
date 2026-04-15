@@ -1,19 +1,17 @@
 """
 Challenge 1 - UAV Precision Landing on Moving UGV
 =================================================
-Hardware: ZED X Camera, Cube Orange+, Holybro H-Flow, Lidar Lite V3
-Logic: 
-  - Stabilize using Optical Flow + Lidar
-  - Detect nested ArUco markers (Large: ID 10, Small: ID 20)
-  - Estimate 6D pose -> convert to Body Frame FRD
-  - Stream LANDING_TARGET messages at 15Hz
-  - Automate flight mode transitions: LOITER -> PRECISION LOITER -> LAND
+Automated takeoff + Precision Loiter + Precision Land using MAVLink LANDING_TARGET.
+Uses the robust CameraInterface from the user's friend's code.
 """
 import time
 import math
 import cv2
 import cv2.aruco as aruco
 import numpy as np
+import os
+from typing import Dict, Optional, Tuple
+from dataclasses import dataclass
 from pymavlink import mavutil
 
 # ─── USER CONFIGURATION ────────────────────────────────────────────────────────
@@ -22,14 +20,11 @@ BAUD_RATE    = 921600
 
 # Nested ArUco Marker Setup
 LARGE_MARKER_ID   = 5
-SMALL_MARKER_ID   = 0
-LARGE_MARKER_SIZE = 0.50   # 50 cm
-SMALL_MARKER_SIZE = 0.16   # 16 cm
+SMALL_MARKER_ID   = 6
+LARGE_MARKER_SIZE = 0.3048   # 12 inches -> meters
+SMALL_MARKER_SIZE = 0.1016   # 4 inches -> meters
 
-# Switch to the small marker when altitude is below this (meters)
-USE_SMALL_BELOW_M = 1.6
-
-# Send rate for LANDING_TARGET
+USE_SMALL_BELOW_M = 1.0
 SEND_HZ = 15.0
 
 # Flight Logic
@@ -37,9 +32,135 @@ TARGET_HEIGHT_M = 2.0
 PLND_STABLE_FRAMES = 15   # Frames of solid tracking before engaging Precision Loiter
 LAND_LATERAL_ERR_M = 0.20 # Meters of allowed lateral error before switching to LAND
 
-# Camera calibration variables (will be populated from ZED SDK dynamically)
-CAM_MATRIX = None
-DIST_COEFFS = None
+# ─── FRIEND'S ROBUST CAMERA & ARUCO CODE ───────────────────────────────────────
+@dataclass
+class MarkerPose:
+    marker_id: int
+    rvec: np.ndarray
+    tvec: np.ndarray
+    center_px: Tuple[int, int]
+    corners: np.ndarray
+
+class CameraInterface:
+    def __init__(self, use_zed: bool = False, camera_index: int = 0, width: int = 1280, height: int = 720, fps: int = 30):
+        self.use_zed = use_zed
+        self.camera_index = camera_index
+        self.width = width
+        self.height = height
+        self.fps = fps
+        self.cap = None
+        self.zed = None
+        self.sl = None
+        self.camera_matrix = None
+        self.dist_coeffs = None
+        if self.use_zed:
+            self._open_zed()
+        else:
+            self._open_standard()
+
+    def _open_zed(self):
+        import pyzed.sl as sl
+        self.sl = sl
+        self.zed = sl.Camera()
+        init_params = sl.InitParameters()
+        init_params.camera_resolution = sl.RESOLUTION.HD1080
+        init_params.camera_fps = self.fps
+        init_params.depth_mode = sl.DEPTH_MODE.NONE
+        err = self.zed.open(init_params)
+        if err != sl.ERROR_CODE.SUCCESS:
+            raise RuntimeError(f"Failed to open ZED camera: {err}")
+        cam_info = self.zed.get_camera_information()
+        calib = cam_info.camera_configuration.calibration_parameters.left_cam
+        self.camera_matrix = np.array([[calib.fx, 0.0, calib.cx], [0.0, calib.fy, calib.cy], [0.0, 0.0, 1.0]], dtype=np.float64)
+        dist = np.array(calib.disto, dtype=np.float64).flatten()
+        if dist.size >= 5: self.dist_coeffs = dist[:5].reshape(-1, 1)
+        elif dist.size > 0: self.dist_coeffs = dist.reshape(-1, 1)
+        else: self.dist_coeffs = np.zeros((5, 1), dtype=np.float64)
+
+    def _open_standard(self):
+        self.cap = cv2.VideoCapture(self.camera_index, cv2.CAP_DSHOW)
+        if not self.cap.isOpened():
+            self.cap = cv2.VideoCapture(self.camera_index)
+        if not self.cap.isOpened():
+            raise RuntimeError(f"Failed to open camera index {self.camera_index}")
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+        self.cap.set(cv2.CAP_PROP_FPS, self.fps)
+
+    def load_standard_calibration(self, yaml_path: Optional[str]):
+        if self.use_zed: return
+        if yaml_path:
+            fs = cv2.FileStorage(yaml_path, cv2.FILE_STORAGE_READ)
+            K = fs.getNode("K").mat()
+            D = fs.getNode("D").mat()
+            fs.release()
+            self.camera_matrix = np.array(K, dtype=np.float64)
+            self.dist_coeffs = np.array(D, dtype=np.float64)
+            return
+
+    def get_frame(self) -> Optional[np.ndarray]:
+        if self.use_zed:
+            if self.zed.grab() != self.sl.ERROR_CODE.SUCCESS: return None
+            image = self.sl.Mat()
+            self.zed.retrieve_image(image, self.sl.VIEW.LEFT)
+            frame = image.get_data()
+            if frame.shape[-1] == 4: frame = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
+            else: frame = frame.copy()
+            return frame
+        else:
+            ret, frame = self.cap.read()
+            if not ret: return None
+            return frame
+
+    def close(self):
+        if self.use_zed and self.zed is not None: self.zed.close()
+        if self.cap is not None: self.cap.release()
+        cv2.destroyAllWindows()
+
+class ArucoDistanceEstimator:
+    def __init__(self, camera_matrix: np.ndarray, dist_coeffs: np.ndarray, dictionary_name: int = aruco.DICT_6X6_1000):
+        self.camera_matrix = camera_matrix
+        self.dist_coeffs = dist_coeffs
+        self.aruco_dict = aruco.getPredefinedDictionary(dictionary_name)
+        if hasattr(aruco, "ArucoDetector"):
+            self.detector_params = aruco.DetectorParameters()
+            self.detector = aruco.ArucoDetector(self.aruco_dict, self.detector_params)
+            self.use_new_detector_api = True
+        else:
+            self.detector_params = aruco.DetectorParameters_create()
+            self.detector = None
+            self.use_new_detector_api = False
+
+    def detect_markers(self, frame: np.ndarray, marker_size_m: float) -> Dict[int, MarkerPose]:
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        if self.use_new_detector_api: corners, ids, _ = self.detector.detectMarkers(gray)
+        else: corners, ids, _ = aruco.detectMarkers(gray, self.aruco_dict, parameters=self.detector_params)
+        poses: Dict[int, MarkerPose] = {}
+        if ids is None or len(ids) == 0: return poses
+
+        for i, marker_id in enumerate(ids.flatten()):
+            rvec, tvec = self._estimate_pose(corners[i], marker_size_m)
+            if rvec is None or tvec is None: continue
+            center = np.mean(corners[i][0], axis=0).astype(int)
+            poses[int(marker_id)] = MarkerPose(
+                marker_id=int(marker_id), rvec=rvec, tvec=tvec.reshape(3),
+                center_px=(int(center[0]), int(center[1])), corners=corners[i][0]
+            )
+        return poses
+
+    def _estimate_pose(self, corner: np.ndarray, marker_size_m: float):
+        half = marker_size_m / 2.0
+        object_points = np.array([[-half, half, 0.0], [half, half, 0.0], [half, -half, 0.0], [-half, -half, 0.0]], dtype=np.float32)
+        image_points = corner.reshape((4, 2)).astype(np.float32)
+        success, rvec, tvec = cv2.solvePnP(object_points, image_points, self.camera_matrix, self.dist_coeffs, flags=cv2.SOLVEPNP_IPPE_SQUARE)
+        if not success: return None, None
+        return rvec, tvec
+
+def draw_crosshair(frame: np.ndarray):
+    h, w = frame.shape[:2]
+    cx, cy = w // 2, h // 2
+    cv2.line(frame, (0, cy), (w, cy), (0, 255, 0), 1)
+    cv2.line(frame, (cx, 0), (cx, h), (0, 255, 0), 1)
 
 # ─── MAVLINK HELPERS ───────────────────────────────────────────────────────────
 master = mavutil.mavlink_connection(MAVLINK_CONN, baud=BAUD_RATE)
@@ -48,40 +169,20 @@ master.wait_heartbeat()
 print("Heartbeat received!")
 
 def send_landing_target(x_b, y_b, z_b):
-    """
-    Send LANDING_TARGET to ArduPilot in Body Frame (FRD).
-    x_b = Forward (meters)
-    y_b = Right (meters)
-    z_b = Down (meters)
-    """
     master.mav.landing_target_send(
-        int(time.time() * 1e6),              # time_usec
-        0,                                   # target_num (0 = default)
-        mavutil.mavlink.MAV_FRAME_BODY_FRD,  # frame
-        0.0,                                 # angle_x (not used for body frame)
-        0.0,                                 # angle_y (not used for body frame)
-        abs(z_b),                            # distance 
-        0.0, 0.0,                            # size_x, size_y (rad)
-        x_b,                                 # x position
-        y_b,                                 # y position
-        abs(z_b),                            # z position
-        (1.0, 0.0, 0.0, 0.0),                # q
-        0,                                   # type
-        1                                    # position_valid flag
+        int(time.time() * 1e6), 0, mavutil.mavlink.MAV_FRAME_BODY_FRD, 0.0, 0.0,
+        abs(z_b), 0.0, 0.0, x_b, y_b, abs(z_b), (1.0, 0.0, 0.0, 0.0), 0, 1
     )
 
 def change_mode(mode_name: str):
     mode_id = master.mode_mapping().get(mode_name)
-    if mode_id is None:
-        print(f"Unknown mode {mode_name}")
-        return False
+    if mode_id is None: return False
     master.set_mode(mode_id)
     return True
 
 def get_rel_alt_m():
     msg = master.recv_match(type='GLOBAL_POSITION_INT', blocking=False)
-    if msg:
-        return msg.relative_alt / 1000.0
+    if msg: return msg.relative_alt / 1000.0
     return None
 
 def arm_and_takeoff(alt):
@@ -91,191 +192,123 @@ def arm_and_takeoff(alt):
     print("Armed! Taking off...")
     master.mav.command_long_send(
         master.target_system, master.target_component,
-        mavutil.mavlink.MAV_CMD_NAV_TAKEOFF,
-        0, 0, 0, 0, 0, 0, 0, alt
+        mavutil.mavlink.MAV_CMD_NAV_TAKEOFF, 0, 0, 0, 0, 0, 0, 0, alt
     )
 
-# ─── CAMERA SETUP ──────────────────────────────────────────────────────────────
-# We are using PyZED exclusively based on working hardware config
-try:
-    import pyzed.sl as sl
-except ImportError:
-    print("CRITICAL ERROR: pyzed.sl is not installed. You must install the ZED SDK on this Jetson!")
-    exit(1)
-
-zed = sl.Camera()
-init_params = sl.InitParameters()
-init_params.camera_resolution = sl.RESOLUTION.HD1080
-init_params.camera_fps = 30
-init_params.depth_mode = sl.DEPTH_MODE.NONE
-
-err = zed.open(init_params)
-if err != sl.ERROR_CODE.SUCCESS:
-    print(f"Failed to open ZED camera: {err}")
-    exit(1)
-
-print("ZED X initialized perfectly.")
-zed_img = sl.Mat()
-
-# Pull real hardware calibration parameters
-cam_info = zed.get_camera_information()
-calib = cam_info.camera_configuration.calibration_parameters.left_cam
-CAM_MATRIX = np.array([
-    [calib.fx, 0.0, calib.cx],
-    [0.0, calib.fy, calib.cy],
-    [0.0, 0.0, 1.0],
-], dtype=np.float32)
-
-dist = np.array(calib.disto, dtype=np.float32).flatten()
-if dist.size >= 5:
-    DIST_COEFFS = dist[:5].reshape(-1, 1)
-else:
-    DIST_COEFFS = dist.reshape(-1, 1)
-
-aruco_dict = aruco.getPredefinedDictionary(aruco.DICT_6X6_1000)
-if hasattr(aruco, "ArucoDetector"):
-    aruco_params = aruco.DetectorParameters()
-    aruco_detector = aruco.ArucoDetector(aruco_dict, aruco_params)
-else:
-    aruco_params = aruco.DetectorParameters_create()
-    aruco_detector = None # Older OpenCV fallback
-
-# ─── STATE MACHINE ─────────────────────────────────────────────────────────────
-state = "TAKEOFF"
-stable_count = 0
-last_send = 0.0
-
-print("Starting Precision Landing State Machine")
-print("Press 'q' or Ctrl+C to quit.")
-
-try:
-    # Set to GUIDED (doesn't require GPS if Optical Flow is active)
-    change_mode("GUIDED")
-    arm_and_takeoff(TARGET_HEIGHT_M)
-    state = "APPROACH"
+# ─── MAIN PROGRAM ──────────────────────────────────────────────────────────────
+def main():
+    # Attempt ZED first, fallback to standard if ZED not heavily used. 
+    # To strictly use standard USB webcam w/ yaml:
+    USE_ZED = False  
+    yaml_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "calibration_chessboard.yaml")
     
-    while True:
-        # Grab frame with ZED SDK reliably
-        if zed.grab() != sl.ERROR_CODE.SUCCESS:
-            print("Failed to grab ZED frame.")
-            time.sleep(0.01)
-            continue
-            
-        zed_img = sl.Mat()
-        zed.retrieve_image(zed_img, sl.VIEW.LEFT)
-        frame_data = zed_img.get_data()
-        
-        # Exact channel fix to prevent the 'green screen' bug
-        if frame_data.shape[-1] == 4:
-            frame = cv2.cvtColor(frame_data, cv2.COLOR_BGRA2BGR)
-        else:
-            frame = frame_data.copy()
+    # Intentionally initialize camera flawlessly using Friend's script wrapper
+    try:
+        # Toggle USE_ZED=True if you prefer ZED natively
+        cam = CameraInterface(use_zed=USE_ZED, camera_index=0, fps=30)
+        cam.load_standard_calibration(yaml_path)
+    except Exception as e:
+        print(f"Failed to open camera: {e}")
+        return
 
-        # Detect markers
-        if aruco_detector:
-            corners, ids, _ = aruco_detector.detectMarkers(frame)
-        else:
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            corners, ids, _ = aruco.detectMarkers(gray, aruco_dict, parameters=aruco_params)
+    estimator = ArucoDistanceEstimator(cam.camera_matrix, cam.dist_coeffs, aruco.DICT_6X6_1000)
 
-        rel_alt = get_rel_alt_m()
-        if rel_alt is None: rel_alt = 2.0
+    # STATE MACHINE
+    state = "TAKEOFF"
+    stable_count = 0
+    last_send = 0.0
 
-        # Choose target size based on altitude
-        marker_id = LARGE_MARKER_ID
-        marker_size = LARGE_MARKER_SIZE
-        if rel_alt < USE_SMALL_BELOW_M:
-            marker_id = SMALL_MARKER_ID
-            marker_size = SMALL_MARKER_SIZE
-
-        found = False
-        target_eb = None
-
-        if ids is not None and len(ids) > 0:
-            ids_flat = ids.flatten()
-            if marker_id in ids_flat:
-                idx = int(np.where(ids_flat == marker_id)[0][0])
-
-                # 3D object points
-                half_s = marker_size / 2.0
-                obj_pts = np.array([
-                    [-half_s,  half_s, 0],
-                    [ half_s,  half_s, 0],
-                    [ half_s, -half_s, 0],
-                    [-half_s, -half_s, 0]
-                ], dtype=np.float32)
-
-                img_pts = corners[idx].reshape(4, 2).astype(np.float32)
-
-                # Solve PnP
-                ok, rvec, tvec = cv2.solvePnP(obj_pts, img_pts, CAM_MATRIX, DIST_COEFFS, flags=cv2.SOLVEPNP_IPPE_SQUARE)
-
-                if ok:
-                    # Convert to Body Frame (FRD)
-                    # Downward camera: X_img(Right) -> Y_body, Y_img(Down_img/Back_veh) -> -X_body
-                    x_cam, y_cam, z_cam = tvec[0][0], tvec[1][0], tvec[2][0]
-                    x_b = -y_cam  # Forward
-                    y_b = x_cam   # Right
-                    z_b = z_cam   # Down (Depth)
-                    
-                    target_eb = (x_b, y_b, z_b)
-
-                    # Send landing target at required frequency
-                    now = time.time()
-                    if now - last_send >= (1.0 / SEND_HZ):
-                        send_landing_target(x_b, y_b, z_b)
-                        last_send = now
-
-                    stable_count += 1
-                    found = True
-
-                    # Visualization
-                    aruco.drawDetectedMarkers(frame, [img_pts.reshape(1, 4, 2)], np.array([[marker_id]]))
-                    cv2.putText(frame, f"X:{x_b:.2f}m Y:{y_b:.2f}m Z:{z_b:.2f}m", (20, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-
-        if not found:
-            stable_count = 0
-            cv2.putText(frame, "TARGET LOST", (20, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
-
-        # STATE MACHINE LOGIC
-        if state == "APPROACH":
-            if stable_count >= PLND_STABLE_FRAMES:
-                print(">>> Target acquired and stable. Holding in GUIDED until perfectly aligned.")
-                # We stay in GUIDED while sending TARGET messages. 
-                state = "PREC_LOITER"
-        
-        elif state == "PREC_LOITER":
-            if stable_count == 0:
-                print(">>> Target lost during PREC_LOITER. Switching back to APPROACH.")
-                state = "APPROACH"
-            elif found and target_eb is not None:
-                err_m = math.sqrt(target_eb[0]**2 + target_eb[1]**2)
-                cv2.putText(frame, f"Error: {err_m:.2f}m", (20, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
-                
-                if err_m < LAND_LATERAL_ERR_M:
-                    print(">>> Aligned perfectly! Switching to LAND.")
-                    change_mode("LAND")
-                    state = "LANDING"
-        
-        elif state == "LANDING":
-            if not found:
-                print(">>> WARNING: Target lost during LANDING. (Trusting PLND_STRICT parameters)")
-            # You can check if disarmed here and trigger your electromagnet lock mechanism
-            if not master.motors_armed():
-                print(">>> TOUCHDOWN DETECTED. DISARMED.")
-                state = "LANDED"
-                break
-        
-        cv2.putText(frame, f"STATE: {state}", (20, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 100, 255), 2)
-        cv2.imshow("Precision Landing", frame)
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
-
-finally:
-    print("Cleaning up...")
-    if 'zed' in locals() and zed is not None:
-        zed.close()
-    cv2.destroyAllWindows()
-    # Failsafe abort mode
-    if state != "LANDED":
+    print("Starting Automated Precision Landing Sequence...")
+    print(">>> Drone will automatically Arm and Takeoff to 2.0m!")
+    try:
         change_mode("GUIDED")
+        arm_and_takeoff(TARGET_HEIGHT_M)
+        state = "APPROACH"
+        
+        while True:
+            frame = cam.get_frame()
+            if frame is None:
+                continue
+
+            draw_crosshair(frame)
+
+            # Check height to decide which marker to track
+            rel_alt = get_rel_alt_m()
+            if rel_alt is None: rel_alt = 2.0
+
+            marker_id_to_use = LARGE_MARKER_ID
+            marker_size_m_to_use = LARGE_MARKER_SIZE
+            if rel_alt < USE_SMALL_BELOW_M:
+                marker_id_to_use = SMALL_MARKER_ID
+                marker_size_m_to_use = SMALL_MARKER_SIZE
+
+            poses = estimator.detect_markers(frame, marker_size_m_to_use)
+            
+            found = False
+            target_eb = None
+
+            if marker_id_to_use in poses:
+                pose = poses[marker_id_to_use]
+                # Convert ZED/Webcam standard frame XYZ to ArduPilot FRD body frame
+                x_cam, y_cam, z_cam = float(pose.tvec[0]), float(pose.tvec[1]), float(pose.tvec[2])
+                x_b = -y_cam  # Forward
+                y_b = x_cam   # Right
+                z_b = z_cam   # Down
+                target_eb = (x_b, y_b, z_b)
+
+                now = time.time()
+                if now - last_send >= (1.0 / SEND_HZ):
+                    send_landing_target(x_b, y_b, z_b)
+                    last_send = now
+
+                stable_count += 1
+                found = True
+
+                # Visualization Overlay
+                corners_arr = [pose.corners.reshape(1, 4, 2).astype(np.float32)]
+                aruco.drawDetectedMarkers(frame, corners_arr, np.array([[marker_id_to_use]]))
+                cv2.drawFrameAxes(frame, cam.camera_matrix, cam.dist_coeffs, pose.rvec, pose.tvec.reshape(3, 1), marker_size_m_to_use * 0.5)
+
+                cv2.putText(frame, f"TRACKING ID: {marker_id_to_use}", (20, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                cv2.putText(frame, f"XYZ: [{x_b:.2f}, {y_b:.2f}, {z_b:.2f}]", (20, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+            else:
+                stable_count = 0
+                cv2.putText(frame, "TARGET LOST", (20, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+
+            # STATE MACHINE LOGIC
+            if state == "APPROACH":
+                if stable_count >= PLND_STABLE_FRAMES:
+                    print(">>> Target stable. Engaging GUIDED HOLD.")
+                    state = "PREC_LOITER"
+            
+            elif state == "PREC_LOITER":
+                if stable_count == 0:
+                    state = "APPROACH"
+                elif found and target_eb is not None:
+                    err_m = math.sqrt(target_eb[0]**2 + target_eb[1]**2)
+                    cv2.putText(frame, f"Align Err: {err_m:.2f}m", (20, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
+                    
+                    if err_m < LAND_LATERAL_ERR_M:
+                        print(">>> Aligned perfectly! Switching to LAND limit.")
+                        change_mode("LAND")
+                        state = "LANDING"
+            
+            elif state == "LANDING":
+                if not master.motors_armed():
+                    print(">>> TOUCHDOWN DETECTED. DISARMED.")
+                    state = "LANDED"
+                    break
+            
+            cv2.putText(frame, f"MODE: {state}", (20, 130), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 255), 2)
+            cv2.imshow("Precision Landing", frame)
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+
+    finally:
+        print("Cleaning up system...")
+        cam.close()
+        if state != "LANDED":
+            change_mode("GUIDED")
+
+if __name__ == "__main__":
+    main()
