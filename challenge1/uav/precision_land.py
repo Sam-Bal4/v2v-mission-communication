@@ -12,6 +12,7 @@ Logic:
 import time
 import math
 import cv2
+import cv2.aruco as aruco
 import numpy as np
 from pymavlink import mavutil
 
@@ -131,12 +132,13 @@ if dist.size >= 5:
 else:
     DIST_COEFFS = dist.reshape(-1, 1)
 
-aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
-aruco_params = cv2.aruco.DetectorParameters()
-try:
-    aruco_detector = cv2.aruco.ArucoDetector(aruco_dict, aruco_params)
-except AttributeError:
-    aruco_detector = None # OpenCV older version handle later
+aruco_dict = aruco.getPredefinedDictionary(aruco.DICT_6X6_1000)
+if hasattr(aruco, "ArucoDetector"):
+    aruco_params = aruco.DetectorParameters()
+    aruco_detector = aruco.ArucoDetector(aruco_dict, aruco_params)
+else:
+    aruco_params = aruco.DetectorParameters_create()
+    aruco_detector = None # Older OpenCV fallback
 
 # ─── STATE MACHINE ─────────────────────────────────────────────────────────────
 state = "TAKEOFF"
@@ -159,6 +161,7 @@ try:
             time.sleep(0.01)
             continue
             
+        zed_img = sl.Mat()
         zed.retrieve_image(zed_img, sl.VIEW.LEFT)
         frame_data = zed_img.get_data()
         
@@ -172,7 +175,8 @@ try:
         if aruco_detector:
             corners, ids, _ = aruco_detector.detectMarkers(frame)
         else:
-            corners, ids, _ = cv2.aruco.detectMarkers(frame, aruco_dict, parameters=aruco_params)
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            corners, ids, _ = aruco.detectMarkers(gray, aruco_dict, parameters=aruco_params)
 
         rel_alt = get_rel_alt_m()
         if rel_alt is None: rel_alt = 2.0
@@ -226,7 +230,7 @@ try:
                     found = True
 
                     # Visualization
-                    cv2.aruco.drawDetectedMarkers(frame, [corners[idx]], np.array([[marker_id]]))
+                    aruco.drawDetectedMarkers(frame, [img_pts.reshape(1, 4, 2)], np.array([[marker_id]]))
                     cv2.putText(frame, f"X:{x_b:.2f}m Y:{y_b:.2f}m Z:{z_b:.2f}m", (20, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
 
         if not found:
